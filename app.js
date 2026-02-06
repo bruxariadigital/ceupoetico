@@ -2,8 +2,8 @@
   "use strict";
 
   // ====== CONFIG ======
-  const SUPABASE_URL = "https://bjxcgnhjfqcpulmzlahp.supabase.co";
-  const SUPABASE_ANON_KEY = "sb_publishable_FmaJ0Zp4JIj1teRUPFwBCw_dqt1YpBo";
+  const SUPABASE_URL = "https://nroguehkffzgerirbdcn.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_87bQ1cjlVd6gw1Ugh45eYg_P8mTW2ZJ";
 
   // ====== LIMITES ======
   const MAX_BYTES = 2 * 1024 * 1024; // 2MB
