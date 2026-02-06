@@ -1,0 +1,71 @@
+<!doctype html>
+
+<link rel="icon" href="data:,">
+
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Potiguarias Visuais — Acessando a ZN</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body class="sky">
+  <header class="topbar">
+    <img class="logo" src="./assets/logo.png" alt="Potiguarias Visuais — Acessando a ZN" />
+    <nav class="nav">
+      <a href="./index.html" class="active">Início</a>
+      <a href="./sobre.html">Sobre</a>
+    </nav>
+  </header>
+
+  <main class="stage">
+    <div id="garden" class="garden" aria-label="Mural do festival"></div>
+
+    <button id="openComposer" class="fab" type="button" aria-haspopup="dialog">
+      Deixar minha marca
+    </button>
+  </main>
+
+ <dialog id="composer" class="dialog" aria-label="Enviar para o mural">
+  <form id="muralForm" class="card" method="dialog">
+    <div class="cardHead">
+      <h1 class="title">Mural do Festival</h1>
+      <button id="closeComposer" class="iconBtn" type="button" aria-label="Fechar">✕</button>
+    </div>
+
+    <p class="subtitle">Escreva algo (vale palavra, verso, relato). Se quiser, anexe uma mídia.</p>
+
+    <!-- TEXTO (em destaque) -->
+    <label class="label" for="text">Texto (recomendado)</label>
+    <textarea id="text" name="text" rows="7" maxlength="900"
+      placeholder="O que você sentiu? O que você viu? O que ficou em você?"></textarea>
+
+    <!-- UPLOAD (menos destaque) -->
+    <div class="uploadBlock">
+      <label class="label" for="media">Imagem / Vídeo / Áudio (opcional, até 2MB)</label>
+      <input id="media" name="media" type="file" accept="image/*,video/*,audio/*" />
+      <p class="uploadHint">Dica: priorize o texto. O arquivo é opcional. Máx: 2MB.</p>
+    </div>
+
+    <div class="row">
+      <p id="status" class="status" aria-live="polite"></p>
+      <button id="sendBtn" class="btn" type="submit">Enviar</button>
+    </div>
+  </form>
+</dialog>
+
+
+  <dialog id="viewer" class="dialog" aria-label="Visualizar postagem">
+    <div class="viewer">
+      <button id="closeViewer" class="iconBtn viewerClose" type="button" aria-label="Fechar">✕</button>
+      <img id="viewerImg" class="viewerImg" alt="" />
+      <p id="viewerText" class="viewerText"></p>
+      <p id="viewerMeta" class="viewerMeta"></p>
+    </div>
+  </dialog>
+
+ <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script defer src="./app.js"></script>
+
+</body>
+</html>
