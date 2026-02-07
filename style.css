@@ -63,7 +63,7 @@ body{
   pointer-events:auto;
 }
 
-/* ===== BOTÃO ORGÂNICO — CÉLULA VIVA ===== */
+/* ===== BOTÃO AMEBA (lóbulos móveis) ===== */
 
 .fab{
   position: fixed;
@@ -76,11 +76,9 @@ body{
   min-width: 260px;
   text-align: center;
 
-  font-weight: 800;
+  font-weight: 850;
   font-size: 15px;
   letter-spacing: 0.6px;
-
-  /* TEXTO */
   color: rgba(255,255,255,0.96);
 
   background: transparent;
@@ -88,21 +86,32 @@ body{
   cursor: pointer;
   user-select: none;
 
-  text-shadow:
-    0 1px 4px rgba(0,0,0,0.35);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.35);
 
-  /* garante stacking correto */
   isolation: isolate;
 }
 
-/* membrana */
+/* A forma inteira está aqui (uma camada) */
 .fab::before{
   content:"";
   position:absolute;
   inset: 0;
   z-index: -1;
 
-  background: rgba(255,255,255,0.18);
+  /* Base arredondada, SEM pontas */
+  border-radius: 999px;
+
+  /* Vidro */
+  background:
+    /* lóbulos (bolinhas) — viram “pseudópodes” */
+    radial-gradient(28px 22px at var(--b1x) var(--b1y), rgba(255,255,255,0.26) 0 60%, transparent 62%),
+    radial-gradient(34px 26px at var(--b2x) var(--b2y), rgba(255,255,255,0.22) 0 60%, transparent 62%),
+    radial-gradient(30px 24px at var(--b3x) var(--b3y), rgba(255,255,255,0.20) 0 60%, transparent 62%),
+    radial-gradient(26px 20px at var(--b4x) var(--b4y), rgba(255,255,255,0.18) 0 60%, transparent 62%),
+
+    /* corpo principal */
+    rgba(255,255,255,0.18);
+
   backdrop-filter: blur(18px) saturate(160%);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
 
@@ -112,15 +121,22 @@ body{
     0 20px 60px rgba(0,0,0,0.30),
     inset 0 1px 0 rgba(255,255,255,0.45);
 
-  /* forma inicial (assimétrica!) */
-  border-radius: 63% 37% 52% 48% / 46% 58% 42% 54%;
+  /* suaviza tudo, deixando orgânico */
+  filter: blur(0.2px);
 
-  animation: blob 6.8s ease-in-out infinite;
+  /* motion: troca posições dos lóbulos */
+  animation: amoeba 6.6s ease-in-out infinite;
 }
 
-/* hover — só um “suspiro” */
+/* hover só dá um “suspiro” (sem duplicar botão) */
 .fab:hover::before{
-  background: rgba(255,255,255,0.24);
+  background:
+    radial-gradient(28px 22px at var(--b1x) var(--b1y), rgba(255,255,255,0.30) 0 60%, transparent 62%),
+    radial-gradient(34px 26px at var(--b2x) var(--b2y), rgba(255,255,255,0.26) 0 60%, transparent 62%),
+    radial-gradient(30px 24px at var(--b3x) var(--b3y), rgba(255,255,255,0.24) 0 60%, transparent 62%),
+    radial-gradient(26px 20px at var(--b4x) var(--b4y), rgba(255,255,255,0.22) 0 60%, transparent 62%),
+    rgba(255,255,255,0.22);
+
   box-shadow:
     0 26px 78px rgba(0,0,0,0.34),
     inset 0 1px 0 rgba(255,255,255,0.55);
@@ -130,40 +146,49 @@ body{
   transform: translateX(-50%) translateY(1px);
 }
 
-/* ===== ANIMAÇÃO ORGÂNICA (AMOEBA) ===== */
-
-@keyframes blob{
+/* ===== Lóbulos móveis (as “pontas arredondadas” mudam de lugar) ===== */
+@keyframes amoeba{
   0%{
-    border-radius: 63% 37% 52% 48% / 46% 58% 42% 54%;
-    transform: scale(1) rotate(-0.4deg);
+    --b1x: 18%; --b1y: 35%;
+    --b2x: 82%; --b2y: 42%;
+    --b3x: 30%; --b3y: 78%;
+    --b4x: 70%; --b4y: 72%;
+    transform: scale(1);
   }
-  12%{
-    border-radius: 48% 52% 38% 62% / 60% 40% 55% 45%;
+  20%{
+    --b1x: 26%; --b1y: 24%;
+    --b2x: 88%; --b2y: 54%;
+    --b3x: 22%; --b3y: 82%;
+    --b4x: 64%; --b4y: 78%;
+    transform: scale(1.01);
   }
-  25%{
-    border-radius: 57% 43% 61% 39% / 44% 56% 40% 60%;
-    transform: scale(1.015) rotate(0.3deg);
+  40%{
+    --b1x: 14%; --b1y: 52%;
+    --b2x: 76%; --b2y: 28%;
+    --b3x: 38%; --b3y: 86%;
+    --b4x: 78%; --b4y: 70%;
+    transform: scale(0.995);
   }
-  37%{
-    border-radius: 42% 58% 47% 53% / 63% 37% 58% 42%;
+  60%{
+    --b1x: 28%; --b1y: 60%;
+    --b2x: 84%; --b2y: 36%;
+    --b3x: 34%; --b3y: 74%;
+    --b4x: 62%; --b4y: 86%;
+    transform: scale(1.015);
   }
-  50%{
-    border-radius: 66% 34% 54% 46% / 38% 62% 46% 54%;
-    transform: scale(0.995) rotate(-0.2deg);
-  }
-  62%{
-    border-radius: 51% 49% 35% 65% / 56% 44% 61% 39%;
-  }
-  75%{
-    border-radius: 59% 41% 57% 43% / 45% 55% 37% 63%;
-    transform: scale(1.02) rotate(0.4deg);
-  }
-  88%{
-    border-radius: 46% 54% 49% 51% / 61% 39% 53% 47%;
+  80%{
+    --b1x: 20%; --b1y: 30%;
+    --b2x: 74%; --b2y: 58%;
+    --b3x: 26%; --b3y: 70%;
+    --b4x: 80%; --b4y: 76%;
+    transform: scale(1.005);
   }
   100%{
-    border-radius: 63% 37% 52% 48% / 46% 58% 42% 54%;
-    transform: scale(1) rotate(-0.4deg);
+    --b1x: 18%; --b1y: 35%;
+    --b2x: 82%; --b2y: 42%;
+    --b3x: 30%; --b3y: 78%;
+    --b4x: 70%; --b4y: 72%;
+    transform: scale(1);
   }
 }
 
@@ -176,6 +201,7 @@ body{
     min-width: 270px;
   }
 }
+
 
 
 
