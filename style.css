@@ -10,6 +10,8 @@
 *{ box-sizing:border-box; }
 html,body{ height:100%; margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; }
 body{
+  min-height: 100svh;  /* stable viewport */
+  min-height: 100dvh;  /* dynamic viewport */
   background:
     radial-gradient(1200px 900px at 20% 10%, rgba(255,255,255,0.12), transparent 60%),
     radial-gradient(1000px 700px at 90% 30%, rgba(255,255,255,0.10), transparent 55%),
@@ -24,7 +26,7 @@ body{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  padding: 14px 16px;
+  padding: calc(14px + env(safe-area-inset-top)) 16px 14px 16px;
   z-index: 10;
   pointer-events:none;
 }
@@ -50,11 +52,13 @@ body{
 }
 .nav a.active{ color: var(--txt); }
 
+/* evita que o conteúdo dependa de padding-top fixo */
 .stage{
-  height:100%;
-  width:100%;
-  position:relative;
-  padding-top: 82px;
+  height: 100svh;
+  height: 100dvh;
+  width: 100%;
+  position: relative;
+  padding-top: 0; /* <-- importante */
 }
 
 .garden{
@@ -63,13 +67,18 @@ body{
   z-index: 1;
   pointer-events:auto;
 }
-
+/* reserva espaço para a topbar sem empurrar a viewport */
+@media (min-width: 1px){
+  .garden{
+    top: calc(82px + env(safe-area-inset-top));
+  }
+}
 /* ===== BOTÃO MANCHA (AERO + texto central) ===== */
 
 .fab{
   position: fixed;
   left: 50%;
-  bottom: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 12;
 
@@ -171,7 +180,7 @@ body{
 
 @media (max-width: 640px){
   .fab{
-    bottom: 22px;
+    bottom: calc(22px + env(safe-area-inset-bottom));
     min-width: 290px;
     min-height: 62px;
     font-size: 16px;
