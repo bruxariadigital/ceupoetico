@@ -71,104 +71,158 @@ body{
   z-index: 12;
 
   padding: 16px 26px;
-  min-width: 220px;
+  min-width: 240px;
   text-align: center;
 
-  font-weight: 800;
+  font-weight: 850;
   font-size: 15px;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
 
-  color: rgba(20,20,30,0.9);
+  color: rgba(18,18,28,0.92);
 
-  /* AERO / GLASS */
+  /* AERO / GLASS (núcleo do botão) */
   background: linear-gradient(
     180deg,
-    rgba(255,255,255,0.85),
-    rgba(255,255,255,0.45)
+    rgba(255,255,255,0.86),
+    rgba(255,255,255,0.46)
   );
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(165%);
+  -webkit-backdrop-filter: blur(16px) saturate(165%);
 
-  border: 1px solid rgba(255,255,255,0.45);
+  border: 1px solid rgba(255,255,255,0.48);
+  border-radius: 999px; /* núcleo legível */
 
-  /* BORDA ORGÂNICA */
-  border-radius: 58% 42% 55% 45% / 48% 52% 48% 52%;
-
-  /* PROFUNDIDADE */
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.7),
-    inset 0 -1px 0 rgba(255,255,255,0.25),
-    0 14px 34px rgba(0,0,0,0.22);
+    inset 0 1px 0 rgba(255,255,255,0.75),
+    0 16px 40px rgba(0,0,0,0.22);
 
   text-shadow:
     0 1px 0 rgba(255,255,255,0.45),
-    0 -1px 0 rgba(0,0,0,0.08);
+    0 -1px 0 rgba(0,0,0,0.06);
 
   cursor: pointer;
+  user-select: none;
 
-  /* VIDA */
-  animation:
-    breathe 5.6s ease-in-out infinite,
-    morph 12s ease-in-out infinite;
+  /* respiração do conjunto */
+  animation: breathe 5.2s ease-in-out infinite;
 
   transition:
     transform 0.25s ease,
     box-shadow 0.25s ease,
     background 0.25s ease;
 }
+
+/* MEMBRANA viva (camada orgânica) */
+.fab::before{
+  content:"";
+  position:absolute;
+  inset: -10px;             /* “pele” maior que o botão */
+  z-index: -1;
+
+  /* cor/matéria da membrana */
+  background:
+    radial-gradient(120px 60px at 30% 30%, rgba(255,255,255,0.55), transparent 60%),
+    radial-gradient(140px 70px at 70% 65%, rgba(255,255,255,0.35), transparent 62%),
+    rgba(255,255,255,0.12);
+
+  border: 1px solid rgba(255,255,255,0.26);
+  box-shadow:
+    0 28px 80px rgba(0,0,0,0.30),
+    inset 0 1px 0 rgba(255,255,255,0.35);
+
+  /* o segredo do “célula”: blur + saturação + forma variável */
+  filter: blur(0.2px);
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+
+  /* forma orgânica DE VERDADE */
+  border-radius: 44% 56% 52% 48% / 54% 44% 56% 46%;
+
+  /* movimento de membrana */
+  animation: membrane 3.8s ease-in-out infinite;
+
+  opacity: 0.95;
+}
+
+/* “halo” leve (opcional, mas dá vida) */
+.fab::after{
+  content:"";
+  position:absolute;
+  inset: -18px;
+  z-index: -2;
+  border-radius: 48% 52% 58% 42% / 52% 44% 56% 48%;
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.22), transparent 60%);
+  filter: blur(10px);
+  opacity: 0.55;
+  animation: halo 5.8s ease-in-out infinite;
+}
+
 @keyframes breathe{
   0%{
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.65),
-      0 14px 34px rgba(0,0,0,0.22);
+      inset 0 1px 0 rgba(255,255,255,0.72),
+      0 16px 40px rgba(0,0,0,0.22);
   }
   50%{
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.8),
-      0 20px 48px rgba(0,0,0,0.26);
+      inset 0 1px 0 rgba(255,255,255,0.86),
+      0 22px 58px rgba(0,0,0,0.26);
   }
   100%{
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.65),
-      0 14px 34px rgba(0,0,0,0.22);
+      inset 0 1px 0 rgba(255,255,255,0.72),
+      0 16px 40px rgba(0,0,0,0.22);
   }
-}
-@keyframes morph{
-  0%{
-    border-radius: 58% 42% 55% 45% / 48% 52% 48% 52%;
-  }
-  50%{
-    border-radius: 52% 48% 46% 54% / 55% 45% 55% 45%;
-  }
-  100%{
-    border-radius: 58% 42% 55% 45% / 48% 52% 48% 52%;
-  }
-}
-.fab:hover{
-  transform: translateX(-50%) translateY(-2px);
-  background: linear-gradient(
-    180deg,
-    rgba(255,255,255,0.95),
-    rgba(255,255,255,0.55)
-  );
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.85),
-    0 22px 54px rgba(0,0,0,0.28);
 }
 
-.fab:active{
-  transform: translateX(-50%) translateY(0);
-  box-shadow:
-    inset 0 3px 8px rgba(0,0,0,0.25),
-    0 10px 26px rgba(0,0,0,0.22);
+/* membrana: perceptível mas suave (3.8s) */
+@keyframes membrane{
+  0%{
+    border-radius: 44% 56% 52% 48% / 54% 44% 56% 46%;
+    transform: translateY(0px) scale(1);
+  }
+  35%{
+    border-radius: 52% 48% 45% 55% / 48% 56% 44% 52%;
+    transform: translateY(-1px) scale(1.01);
+  }
+  70%{
+    border-radius: 47% 53% 58% 42% / 56% 46% 54% 44%;
+    transform: translateY(0.5px) scale(0.995);
+  }
+  100%{
+    border-radius: 44% 56% 52% 48% / 54% 44% 56% 46%;
+    transform: translateY(0px) scale(1);
+  }
 }
+
+@keyframes halo{
+  0%{ opacity: 0.50; transform: scale(1); }
+  50%{ opacity: 0.72; transform: scale(1.03); }
+  100%{ opacity: 0.50; transform: scale(1); }
+}
+
+/* interação */
+.fab:hover{
+  transform: translateX(-50%) translateY(-2px);
+  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.56));
+}
+.fab:hover::before{
+  opacity: 1;
+}
+.fab:active{
+  transform: translateX(-50%) translateY(0px);
+}
+
+/* Mobile */
 @media (max-width: 640px){
   .fab{
     bottom: 22px;
     padding: 18px 28px;
     font-size: 16px;
+    min-width: 250px;
   }
 }
+
 
 
 
@@ -192,13 +246,7 @@ body{
   border-color: rgba(255,255,255,0.42);
   background: rgba(255,255,255,0.16);
 }
-@media (max-width: 640px){
-  .fab{
-    bottom: 22px;
-    padding: 16px 24px;
-    font-size: 15px;
-  }
-}
+
 
 .seed .emoji{
   font-size: 18px;
@@ -379,11 +427,8 @@ input[type="file"]{
 
 /* ====== Bubble preview (hover) — ÚNICO bloco ====== */
 
-.seed{
-  position: absolute;
-  cursor: pointer;
-  overflow: visible;
-}
+.seed{ overflow: visible; }
+
 
 .seed .bubble{
   position: absolute;
