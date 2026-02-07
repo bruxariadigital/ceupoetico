@@ -63,8 +63,6 @@ body{
   pointer-events:auto;
 }
 
-/* ===== BOTÃO AMEBA (lóbulos móveis) ===== */
-
 .fab{
   position: fixed;
   left: 50%;
@@ -72,73 +70,59 @@ body{
   transform: translateX(-50%);
   z-index: 12;
 
-  padding: 18px 30px;
-  min-width: 260px;
+  padding: 18px 34px;
+  min-width: 270px;
   text-align: center;
 
   font-weight: 850;
   font-size: 15px;
   letter-spacing: 0.6px;
-  color: rgba(255,255,255,0.96);
 
+  color: rgba(255,255,255,0.96);
   background: transparent;
   border: 0;
   cursor: pointer;
   user-select: none;
 
-  text-shadow: 0 1px 4px rgba(0,0,0,0.35);
-
+  text-shadow: 0 2px 10px rgba(0,0,0,0.35);
   isolation: isolate;
 }
 
-/* A forma inteira está aqui (uma camada) */
+/* o “corpo” da ameba */
 .fab::before{
   content:"";
   position:absolute;
-  inset: 0;
+  inset: -6px;              /* dá espaço pras membranas se moverem */
   z-index: -1;
 
-  /* Base arredondada, SEM pontas */
-  border-radius: 999px;
-
-  /* Vidro */
-  background:
-    /* lóbulos (bolinhas) — viram “pseudópodes” */
-    radial-gradient(28px 22px at var(--b1x) var(--b1y), rgba(255,255,255,0.26) 0 60%, transparent 62%),
-    radial-gradient(34px 26px at var(--b2x) var(--b2y), rgba(255,255,255,0.22) 0 60%, transparent 62%),
-    radial-gradient(30px 24px at var(--b3x) var(--b3y), rgba(255,255,255,0.20) 0 60%, transparent 62%),
-    radial-gradient(26px 20px at var(--b4x) var(--b4y), rgba(255,255,255,0.18) 0 60%, transparent 62%),
-
-    /* corpo principal */
-    rgba(255,255,255,0.18);
-
+  /* vidro/aero */
+  background: rgba(255,255,255,0.20);
   backdrop-filter: blur(18px) saturate(160%);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
 
-  border: 1px solid rgba(255,255,255,0.38);
-
+  border: 1px solid rgba(255,255,255,0.35);
   box-shadow:
-    0 20px 60px rgba(0,0,0,0.30),
+    0 22px 70px rgba(0,0,0,0.28),
     inset 0 1px 0 rgba(255,255,255,0.45);
 
-  /* suaviza tudo, deixando orgânico */
-  filter: blur(0.2px);
+  /* máscara orgânica (SVG) */
+  -webkit-mask: var(--amoeba-mask);
+  mask: var(--amoeba-mask);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 
-  /* motion: troca posições dos lóbulos */
-  animation: amoeba 6.6s ease-in-out infinite;
+  /* animação do morph */
+  animation: amoebaMorph 6.4s ease-in-out infinite;
 }
 
-/* hover só dá um “suspiro” (sem duplicar botão) */
+/* hover: só intensifica */
 .fab:hover::before{
-  background:
-    radial-gradient(28px 22px at var(--b1x) var(--b1y), rgba(255,255,255,0.30) 0 60%, transparent 62%),
-    radial-gradient(34px 26px at var(--b2x) var(--b2y), rgba(255,255,255,0.26) 0 60%, transparent 62%),
-    radial-gradient(30px 24px at var(--b3x) var(--b3y), rgba(255,255,255,0.24) 0 60%, transparent 62%),
-    radial-gradient(26px 20px at var(--b4x) var(--b4y), rgba(255,255,255,0.22) 0 60%, transparent 62%),
-    rgba(255,255,255,0.22);
-
+  background: rgba(255,255,255,0.25);
+  border-color: rgba(255,255,255,0.48);
   box-shadow:
-    0 26px 78px rgba(0,0,0,0.34),
+    0 28px 86px rgba(0,0,0,0.32),
     inset 0 1px 0 rgba(255,255,255,0.55);
 }
 
@@ -146,63 +130,54 @@ body{
   transform: translateX(-50%) translateY(1px);
 }
 
-/* ===== Lóbulos móveis (as “pontas arredondadas” mudam de lugar) ===== */
-@keyframes amoeba{
-  0%{
-    --b1x: 18%; --b1y: 35%;
-    --b2x: 82%; --b2y: 42%;
-    --b3x: 30%; --b3y: 78%;
-    --b4x: 70%; --b4y: 72%;
-    transform: scale(1);
-  }
-  20%{
-    --b1x: 26%; --b1y: 24%;
-    --b2x: 88%; --b2y: 54%;
-    --b3x: 22%; --b3y: 82%;
-    --b4x: 64%; --b4y: 78%;
-    transform: scale(1.01);
-  }
-  40%{
-    --b1x: 14%; --b1y: 52%;
-    --b2x: 76%; --b2y: 28%;
-    --b3x: 38%; --b3y: 86%;
-    --b4x: 78%; --b4y: 70%;
-    transform: scale(0.995);
-  }
-  60%{
-    --b1x: 28%; --b1y: 60%;
-    --b2x: 84%; --b2y: 36%;
-    --b3x: 34%; --b3y: 74%;
-    --b4x: 62%; --b4y: 86%;
-    transform: scale(1.015);
-  }
-  80%{
-    --b1x: 20%; --b1y: 30%;
-    --b2x: 74%; --b2y: 58%;
-    --b3x: 26%; --b3y: 70%;
-    --b4x: 80%; --b4y: 76%;
-    transform: scale(1.005);
-  }
-  100%{
-    --b1x: 18%; --b1y: 35%;
-    --b2x: 82%; --b2y: 42%;
-    --b3x: 30%; --b3y: 78%;
-    --b4x: 70%; --b4y: 72%;
-    transform: scale(1);
-  }
-}
-
 /* mobile */
 @media (max-width: 640px){
   .fab{
     bottom: 22px;
     font-size: 16px;
-    padding: 20px 32px;
-    min-width: 270px;
+    padding: 20px 36px;
+    min-width: 280px;
   }
 }
 
+/**************/
 
+:root{
+  /* SVG masks (4 variações) — curvas arredondadas, sem pontas secas */
+  --amoeba1: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 120'>\
+<path fill='black' d='M40,62 C28,40 36,18 64,16 C92,14 106,28 128,22 C150,16 160,6 184,12 C208,18 204,38 228,44 C252,50 282,44 286,66 C290,88 262,100 236,102 C210,104 198,114 172,110 C146,106 136,96 110,100 C84,104 52,96 40,62 Z'/>\
+</svg>");
+
+  --amoeba2: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 120'>\
+<path fill='black' d='M38,66 C22,48 30,20 60,18 C90,16 110,32 132,28 C154,24 164,8 190,14 C216,20 214,42 238,48 C262,54 290,54 288,74 C286,94 258,104 232,104 C206,104 198,112 170,110 C142,108 132,94 108,98 C84,102 54,92 38,66 Z'/>\
+</svg>");
+
+  --amoeba3: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 120'>\
+<path fill='black' d='M44,70 C28,56 28,26 56,20 C84,14 110,34 132,30 C154,26 164,10 190,16 C216,22 220,46 244,52 C268,58 294,62 288,82 C282,102 254,108 226,106 C198,104 194,114 166,110 C138,106 128,90 104,94 C80,98 60,84 44,70 Z'/>\
+</svg>");
+
+  --amoeba4: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 120'>\
+<path fill='black' d='M36,64 C24,44 34,20 62,18 C90,16 112,30 134,26 C156,22 166,8 192,14 C218,20 214,44 240,50 C266,56 292,48 290,70 C288,92 260,104 234,104 C208,104 196,114 170,110 C144,106 134,96 110,100 C86,104 48,92 36,64 Z'/>\
+</svg>");
+
+  /* máscara inicial */
+  --amoeba-mask: var(--amoeba1);
+}
+
+@keyframes amoebaMorph{
+  0%   { --amoeba-mask: var(--amoeba1); transform: scale(1); }
+  25%  { --amoeba-mask: var(--amoeba2); transform: scale(1.01); }
+  50%  { --amoeba-mask: var(--amoeba3); transform: scale(0.995); }
+  75%  { --amoeba-mask: var(--amoeba4); transform: scale(1.015); }
+  100% { --amoeba-mask: var(--amoeba1); transform: scale(1); }
+}
+
+
+/******/
 
 
 
