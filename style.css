@@ -64,6 +64,8 @@ body{
   pointer-events:auto;
 }
 
+/* ===== BOTÃO MANCHA (AERO + texto central) ===== */
+
 .fab{
   position: fixed;
   left: 50%;
@@ -71,42 +73,50 @@ body{
   transform: translateX(-50%);
   z-index: 12;
 
-  padding: 18px 34px;
-  min-width: 270px;
-  text-align: center;
+  min-width: 280px;
+  min-height: 58px;
+
+  /* ESSENCIAL: texto no centro */
+  display: grid;
+  place-items: center;
+
+  padding: 0 26px;
 
   font-weight: 850;
   font-size: 15px;
   letter-spacing: 0.6px;
 
-  color: rgba(255,255,255,0.96);
+  color: rgba(255,255,255,0.98);
   background: transparent;
   border: 0;
   cursor: pointer;
   user-select: none;
 
   text-shadow: 0 2px 10px rgba(0,0,0,0.35);
+
   isolation: isolate;
 }
 
-/* o “corpo” da ameba */
+/* a MANCHA (silhueta) */
 .fab::before{
   content:"";
   position:absolute;
-  inset: -6px;              /* dá espaço pras membranas se moverem */
-  z-index: -1;
 
-  /* vidro/aero */
-  background: rgba(255,255,255,0.20);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  /* AQUI é onde a mancha cresce pra envolver o texto */
+  inset: -18px -34px;  /* mais largo e mais alto que o botão */
+  z-index: -2;
 
-  border: 1px solid rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.18);
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+
+  border: 1px solid rgba(255,255,255,0.34);
+
   box-shadow:
-    0 22px 70px rgba(0,0,0,0.28),
+    0 26px 80px rgba(0,0,0,0.32),
     inset 0 1px 0 rgba(255,255,255,0.45);
 
-  /* máscara orgânica (SVG) */
+  /* máscara orgânica */
   -webkit-mask: var(--amoeba-mask);
   mask: var(--amoeba-mask);
   -webkit-mask-size: 100% 100%;
@@ -114,31 +124,60 @@ body{
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
 
-  /* animação do morph */
   animation: amoebaMorph 6.4s ease-in-out infinite;
 }
 
-/* hover: só intensifica */
+/* highlight aero (dá “definição” de vidro) */
+.fab::after{
+  content:"";
+  position:absolute;
+
+  /* acompanha a mancha, mas um pouco menor */
+  inset: -10px -26px;
+  z-index: -1;
+
+  background:
+    radial-gradient(120px 60px at 35% 30%, rgba(255,255,255,0.55), transparent 60%),
+    radial-gradient(160px 80px at 70% 75%, rgba(255,255,255,0.18), transparent 65%);
+
+  -webkit-mask: var(--amoeba-mask);
+  mask: var(--amoeba-mask);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  opacity: 0.75;
+  filter: blur(0.2px);
+  pointer-events: none;
+
+  animation: amoebaMorph 6.4s ease-in-out infinite;
+}
+
 .fab:hover::before{
-  background: rgba(255,255,255,0.25);
-  border-color: rgba(255,255,255,0.48);
+  background: rgba(255,255,255,0.22);
+  border-color: rgba(255,255,255,0.46);
   box-shadow:
-    0 28px 86px rgba(0,0,0,0.32),
+    0 34px 100px rgba(0,0,0,0.36),
     inset 0 1px 0 rgba(255,255,255,0.55);
+}
+.fab:hover::after{
+  opacity: 0.9;
 }
 
 .fab:active{
   transform: translateX(-50%) translateY(1px);
 }
 
-/* mobile */
 @media (max-width: 640px){
   .fab{
     bottom: 22px;
+    min-width: 290px;
+    min-height: 62px;
     font-size: 16px;
-    padding: 20px 36px;
-    min-width: 280px;
   }
+  .fab::before{ inset: -18px -28px; }
+  .fab::after{ inset: -10px -22px; }
 }
 
 /**************/
