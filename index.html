@@ -6,69 +6,69 @@
 
   <title>Céu poético | Laborátorio Experimental</title>
 
-  <!-- favicon “vazio” (evita 404 do /favicon.ico) -->
   <link rel="icon" href="data:,">
-
-  <!-- IMPORTANTE: o arquivo precisa se chamar exatamente style.css -->
   <link rel="stylesheet" href="./style.css" />
 </head>
 
 <body class="sky">
   <header class="topbar">
-  <!-- <img class="logo" src="./assets/logo.png" alt="Céu poético | Laborátorio Experimental" /> -->
-    <nav class="nav">
+    <nav class="nav" aria-label="Menu">
       <a href="./index.html" class="active">Início</a>
-      <a href="./sobre.html">Sobre</a>
+      <a href="#" id="openAbout">O que é ser potiguar?</a>
     </nav>
   </header>
 
   <main class="stage">
-  <canvas id="hydra-canvas" class="hydra-canvas" aria-hidden="true"></canvas>
-  <div id="garden" class="garden" aria-label="mural interativo"></div>
+    <canvas id="hydra-canvas" class="hydra-canvas" aria-hidden="true"></canvas>
+
+    <div id="garden" class="garden" aria-label="mural interativo"></div>
+
+    <!-- Triângulos / presets (A-B-C-D) -->
     <div id="presetDock" class="presetDock" aria-label="Presets do fundo">
-  <button class="presetTri is-active" type="button" data-preset="A" aria-label="Preset A"></button>
-  <button class="presetTri" type="button" data-preset="C" aria-label="Preset C"></button>
-</div>
+      <button class="presetTri is-active" type="button" data-preset="A" aria-label="Preset A"></button>
+      <button class="presetTri" type="button" data-preset="B" aria-label="Preset B"></button>
+      <button class="presetTri" type="button" data-preset="C" aria-label="Preset C"></button>
+      <button class="presetTri" type="button" data-preset="D" aria-label="Preset D"></button>
+    </div>
 
+    <!-- Botões inferiores (centralizados) -->
+    <div class="fabWrap" aria-label="Ações">
+      <button id="openComposer" class="fab" type="button" aria-haspopup="dialog">
+        Plantar uma semente
+      </button>
 
- <!-- Botões inferiores (centralizados) -->
-<div class="fabWrap" aria-label="Ações">
-  <button id="openComposer" class="fab" type="button" aria-haspopup="dialog">
-    Plantar uma semente
-  </button>
+      <button id="openHydraMini" class="fab" type="button">
+        Crie
+      </button>
+    </div>
 
-  <button id="openHydraMini" class="fab" type="button">
-    Crie
-  </button>
-</div>
+    <!-- Mini editor -->
+    <div id="hydraMini" class="hydra-mini" hidden>
+      <div class="hydra-mini__top">
+        <strong>Hydra Sintetizador de Vídeo online</strong>
+        <button id="closeHydraMini" type="button" class="hydra-mini__x" aria-label="Fechar">✕</button>
+      </div>
 
-<!-- Mini editor -->
-<div id="hydraMini" class="hydra-mini" hidden>
-  <div class="hydra-mini__top">
-    <strong>Hydra Sintetizador de Vídeo online</strong>
-    <button id="closeHydraMini" type="button" class="hydra-mini__x" aria-label="Fechar">✕</button>
-  </div>
+      <textarea id="hydraCode" spellcheck="false"></textarea>
 
-  <textarea id="hydraCode" spellcheck="false"></textarea>
+      <div class="hydra-mini__actions">
+        <a id="resetHydra" class="hydra-reset" href="#">resetar</a>
+        <button id="runHydra" class="btn" type="button">clique-me para rodar o código</button>
+      </div>
+    </div>
+  </main>
 
-  <div class="hydra-mini__actions">
-    <!-- reset sutil (link) -->
-    <a id="resetHydra" class="hydra-reset" href="#">resetar</a>
-
-    <button id="runHydra" class="btn" type="button">clique-me para rodar o código</button>
-  </div>
-</div>
-
-</main>
-
+  <!-- POPUP: Plantar uma semente -->
   <dialog id="composer" class="dialog" aria-label="Enviar para o mural">
-    <form id="muralForm" class="card" method="dialog">
+    <form id="muralForm" class="card card--aero" method="dialog">
       <div class="cardHead">
-        <h1 class="title">Céu Poético</h1>
+        <h1 class="title aeroTitle">Céu Poético</h1>
         <button id="closeComposer" class="iconBtn" type="button" aria-label="Fechar">✕</button>
       </div>
 
-      <p class="subtitle">Escreva algo (vale palavra, verso, relato). Se quiser, anexe uma mídia.</p>
+      <p class="subtitle">
+        Escreva algo (vale palavra, verso, relato). Se quiser, anexe uma mídia.
+      </p>
 
       <label class="label" for="text">Texto (recomendado)</label>
       <textarea id="text" name="text" rows="7" maxlength="900"
@@ -87,6 +87,35 @@
     </form>
   </dialog>
 
+  <!-- POPUP: Sobre / poética -->
+  <dialog id="about" class="dialog" aria-label="O que é ser potiguar?">
+    <div class="card card--aero aboutCard">
+      <div class="cardHead">
+        <h2 class="title aeroTitle">O que é ser potiguar?</h2>
+        <button id="closeAbout" class="iconBtn" type="button" aria-label="Fechar">✕</button>
+      </div>
+
+      <p class="subtitle">
+        Potiguarias Visuais é um festival-experimento em tempo real: arte contemporânea + novas mídias + presença do público.
+      </p>
+
+      <div class="aboutText">
+        <p>
+          Aqui, “ser potiguar” não é um carimbo: é um movimento. É memória e invenção. É território afetivo, ginga, litoral, periferia,
+          ruído, beleza, improviso — e a coragem de transformar o cotidiano em linguagem.
+        </p>
+        <p>
+          A poética do festival cruza videomapping, performance, códigos ao vivo e intervenções urbanas para criar um céu comum:
+          um lugar onde cada pessoa deixa sua marca, e a soma dessas marcas vira constelação.
+        </p>
+        <p class="aboutHint">
+          Toque/clique em qualquer lugar fora deste card para fechar.
+        </p>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Viewer (post) -->
   <dialog id="viewer" class="dialog" aria-label="Visualizar postagem">
     <div class="viewer">
       <button id="closeViewer" class="iconBtn viewerClose" type="button" aria-label="Fechar">✕</button>
