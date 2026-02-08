@@ -46,7 +46,7 @@
 s0.initCam()
 speed=.1
 
-src(s0).blend(src(o0), 0.7).modulateScale(src(s0), .1).diff(src(s0).color(1,5,-1, ), ()=>a.fft[1]*2).luma()
+src(s0).blend(src(o0), 0.7).modulateScale(src(s0), .1).diff(src(s0).color(1,5,-1), ()=>a.fft[1]*2).luma()
 
 .out()
 
