@@ -4,7 +4,7 @@
   // =====================================================
   // CONFIG / STATE (persistência por dispositivo)
   // =====================================================
-  const STORAGE_KEY = "CEUPOETICO_STATE_V2";
+  const STORAGE_KEY = "CEUPOETICO_STATE_V3";
   const USERKEY_KEY = "CEUPOETICO_USERKEY_V1";
 
   function getUserKey() {
@@ -35,90 +35,106 @@
   }
 
   // =====================================================
-  // PRESETS (A/B/C) + meta (qual buffer renderizar)
+  // PRESETS (A/B/C) + buffers
+  // - IMPORTANTE: reservamos o3 como DISPLAY final
+  // - portanto, nenhum preset pode usar o3 internamente
   // =====================================================
+  const DISPLAY_BUF = "o3";
+
   const PRESET_DEFAULTS = {
     A: {
       name: "A",
-      render: "o0",
-      code: `//espelho
+      renderBuf: "o0",
+      code: `// A — espelho (corrigido)
 
 s0.initCam()
 speed=.1
 
-src(s0).blend(src(o0), 0.7).modulateScale(src(s0), .1).diff(src(s0).color(1,5,-1), ()=>a.fft[1]*2).luma()
-
-.out()
+src(s0)
+  .blend(src(o0), 0.7)
+  .modulateScale(src(s0), .1)
+  .diff(src(s0).color(1,5,-1), ()=>a.fft[1]*2)
+  .luma()
+  .out(o0)
 
 a.show()
 `
     },
+
+    // ✅ B refeito para NÃO usar o3
+    //   o2 vira o "osc auxiliar", o0 e o2 se combinam, e o1 é o resultado final
     B: {
       name: "B",
-      render: "o1",
-      code: `// esse triangulo responde à sua voz
+      renderBuf: "o1",
+      code: `// B — responde à sua voz (sem usar o3)
 
-shape(3, .2,.3).rotate(2, .2).scale( ()=>a.fft[1]*4)
-.color(5,2)
-.hue(8)
-
-.out(o0)
-
-src(o0).mult(src(o3), 1)
-.out(o2)
+shape(3, .2,.3)
+  .rotate(2, .2)
+  .scale(()=>a.fft[1]*4)
+  .color(5,2)
+  .hue(8)
+  .out(o0)
 
 osc(100, .3, 4)
-.out(o3)
+  .out(o2)
 
-src(o2).blend(src(o2).scale(1.5).rotate(4, 2))
-.modulateScale(src(o1))
-.out(o1)
+src(o0)
+  .mult(src(o2), 1)
+  .out(o1)
+
+src(o1)
+  .blend(src(o1).scale(1.5).rotate(4, 2))
+  .modulateScale(src(o1))
+  .out(o1)
 
 a.show()
-
 render(o1)
 `
     },
+
     C: {
       name: "C",
-      render: "o0",
-      code: `//olá, mundo.
-
-speed=.3 // intensidade
-//sinto que estou saindo de um casulo
-// para algumas pessoas, viver é um manifesto de si mesmo
+      renderBuf: "o0",
+      code: `// C — olá, mundo
+speed=.3
 
 osc(.33,3.3,3.3)
-.blend(shape(3, .2,.3).mult(
-(osc(2.3,3.3,3.3).modulateRotate(osc(3.3,3.3,3.3).hue(3).shift(2))).color(0,0,8)
-))
-.mult(osc(.33,.33,3.3)).modulateScale(noise(3.3,3.3,3.3)).diff(osc(5.33,.3,4))
-.mult(shape(3,.3,.2))
-.out(o1)
+  .blend(
+    shape(3, .2,.3).mult(
+      (osc(2.3,3.3,3.3)
+        .modulateRotate(osc(3.3,3.3,3.3).hue(3).shift(2)))
+        .color(0,0,8)
+    )
+  )
+  .mult(osc(.33,.33,3.3))
+  .modulateScale(noise(3.3,3.3,3.3))
+  .diff(osc(5.33,.3,4))
+  .mult(shape(3,.3,.2))
+  .out(o1)
 
-src(o0).modulateHue(src(o0).scale(1.02))
-.layer(src(o1).luma(0.5, 1e-6),.5)
-.modulateRotate(src(o1).modulate(osc(.2,.5,4))).shift(5)
-.mult(shape(3,.3,.2).scale(1.006))
-.modulateRotate(osc(-3,-3,3).rotate(-2-.3))
-.layer(src(o1).luma(0.25, 1e-5),.5)
-.modulateRotate(src(o1).modulate(osc(.2,.5,4))).shift(5)
-.out(o2)
+src(o0)
+  .modulateHue(src(o0).scale(1.02))
+  .layer(src(o1).luma(0.5, 1e-6), .5)
+  .modulateRotate(src(o1).modulate(osc(.2,.5,4)))
+  .shift(5)
+  .mult(shape(3,.3,.2).scale(1.006))
+  .modulateRotate(osc(-3,-3,3).rotate(-2-.3))
+  .layer(src(o1).luma(0.25, 1e-5), .5)
+  .modulateRotate(src(o1).modulate(osc(.2,.5,4)))
+  .shift(5)
+  .out(o2)
 
 src(o2)
-.repeat(4,4).modulateScale(osc(5,.5,.5)).rotate(.5,.02)
-.out()
+  .repeat(4,4)
+  .modulateScale(osc(5,.5,.5))
+  .rotate(.5,.02)
+  .out(o0)
 `
     }
   };
 
   function defaultFx() {
-    return {
-      contrast: 1.0,
-      saturate: 1.0,
-      brightness: 0.0,
-      colorama: 0.0
-    };
+    return { contrast: 1.0, saturate: 1.0, brightness: 0.0, colorama: 0.0 };
   }
 
   function defaultState() {
@@ -135,7 +151,7 @@ src(o2)
 
   function getOrInitState() {
     const s = loadState();
-    if (s?.userKey && s?.presets?.A && s?.presets?.B && s?.presets?.C) return s;
+    if (s?.userKey && s?.presets?.A && s?.presets?.B && s?.presets?.C && s?.activePreset) return s;
     const fresh = defaultState();
     saveState(fresh);
     return fresh;
@@ -160,9 +176,8 @@ src(o2)
   // HYDRA (real) + FX layer + hover random
   // =====================================================
   let hydraReady = false;
-  let currentPreset = "A";
 
-  // variável global de hover (muda a cada hover)
+  // hover global (reativo)
   window.CEU_HOVER = 0;
 
   function initHydraBackground() {
@@ -172,12 +187,11 @@ src(o2)
     const canvas = document.getElementById("hydra-canvas");
     if (!canvas) return;
 
+    // makeGlobal:true => src/osc/o0/render etc ficam globais, compatível com seus patches
     // eslint-disable-next-line no-undef
     new Hydra({ canvas, detectAudio: true, makeGlobal: true });
 
-    // prepara câmera (alguns presets usam)
-    try { s0.initCam(); } catch {}
-
+    // não força câmera aqui — o preset A já chama s0.initCam()
     hydraReady = true;
   }
 
@@ -186,29 +200,27 @@ src(o2)
   }
 
   function safeEvalHydra(code) {
-    // executa no contexto global do Hydra (makeGlobal:true)
     (0, eval)(code);
   }
 
-  function applyPresetFx(presetId, state) {
-    // aplica pós-processamento no buffer "render" do preset
+  // aplica FX SEM quebrar o preset: sempre escreve no DISPLAY_BUF (o3)
+  function applyPresetFxToDisplay(presetId, state) {
     const meta = PRESET_DEFAULTS[presetId] || PRESET_DEFAULTS.A;
-    const renderName = meta.render || "o0";
-    const buf = globalThis[renderName] || globalThis.o0;
+    const srcName = meta.renderBuf || "o0";
+    const srcBuf = globalThis[srcName] || globalThis.o0;
+    const outBuf = globalThis[DISPLAY_BUF] || globalThis.o3;
 
     const fx = state.presets[presetId]?.fx || defaultFx();
 
     try {
-      // pós-processamento reativo (lê fx e hover em tempo real)
-      src(buf)
+      src(srcBuf)
         .contrast(() => fx.contrast + window.CEU_HOVER * 0.35)
         .saturate(() => fx.saturate + window.CEU_HOVER * 0.9)
         .brightness(() => fx.brightness + window.CEU_HOVER * 0.12)
         .colorama(() => fx.colorama + window.CEU_HOVER * 0.6)
-        .out(buf);
+        .out(outBuf);
 
-      // força render no buffer esperado (caso preset não chame render)
-      if (typeof window.render === "function") window.render(buf);
+      if (typeof window.render === "function") window.render(outBuf);
     } catch (e) {
       console.warn("FX falhou (ignorado):", e);
     }
@@ -219,9 +231,9 @@ src(o2)
     hushIfPossible();
 
     const presetId = state.activePreset || "A";
-    currentPreset = presetId;
+    const code = (state.presets[presetId]?.code || PRESET_DEFAULTS[presetId]?.code || "").trim();
 
-    const code = state.presets[presetId]?.code || PRESET_DEFAULTS[presetId]?.code || PRESET_DEFAULTS.A.code;
+    if (!code) return;
 
     try {
       safeEvalHydra(code);
@@ -231,8 +243,8 @@ src(o2)
       return;
     }
 
-    // aplica a camada de FX (seed + hover)
-    applyPresetFx(presetId, state);
+    // garante display com FX
+    applyPresetFxToDisplay(presetId, state);
   }
 
   // =====================================================
@@ -242,19 +254,18 @@ src(o2)
     const id = state.activePreset || "A";
     const fx = state.presets[id]?.fx || defaultFx();
 
-    // escolhe aleatoriamente um parâmetro e muda levemente
     const pick = Math.floor(Math.random() * 4);
 
-    if (pick === 0) fx.contrast = clamp(fx.contrast + (Math.random() * 0.35), 0.7, 2.8);
-    if (pick === 1) fx.saturate = clamp(fx.saturate + (Math.random() * 0.55), 0.6, 3.2);
+    if (pick === 0) fx.contrast   = clamp(fx.contrast + (Math.random() * 0.35), 0.7, 2.8);
+    if (pick === 1) fx.saturate   = clamp(fx.saturate + (Math.random() * 0.55), 0.6, 3.2);
     if (pick === 2) fx.brightness = clamp(fx.brightness + (Math.random() * 0.06 - 0.01), -0.25, 0.35);
-    if (pick === 3) fx.colorama = clamp(fx.colorama + (Math.random() * 0.35), 0, 2.5);
+    if (pick === 3) fx.colorama   = clamp(fx.colorama + (Math.random() * 0.35), 0, 2.5);
 
     state.presets[id].fx = fx;
     saveState(state);
 
-    // re-aplica FX sem recompilar preset
-    applyPresetFx(id, state);
+    // reaplica FX no display sem recompilar preset
+    applyPresetFxToDisplay(id, state);
   }
 
   // =====================================================
@@ -379,7 +390,7 @@ src(o2)
     viewer?.showModal?.();
   }
 
-  function createSeedEl(post, viewerEls) {
+  function createSeedEl(post, viewerEls, state) {
     const el = document.createElement("button");
     el.className = "seed";
     el.type = "button";
@@ -435,18 +446,20 @@ src(o2)
 
     el.addEventListener("click", () => openViewer(viewerEls, post));
 
-    // ✅ hover aleatório a cada hover
+    // ✅ hover aleatório: muda o boost e reaplica FX no display
     el.addEventListener("mouseenter", () => {
-      window.CEU_HOVER = 0.45 + Math.random() * 1.05; // muda sempre
+      window.CEU_HOVER = 0.45 + Math.random() * 1.05;
+      applyPresetFxToDisplay(state.activePreset || "A", state);
     });
     el.addEventListener("mouseleave", () => {
       window.CEU_HOVER = 0;
+      applyPresetFxToDisplay(state.activePreset || "A", state);
     });
 
     return el;
   }
 
-  async function renderGarden(garden, viewerEls) {
+  async function renderGarden(garden, viewerEls, state) {
     if (!garden) return;
     if (!supabaseReady()) return;
 
@@ -455,7 +468,7 @@ src(o2)
       const ordered = (posts || []).reverse();
 
       garden.innerHTML = "";
-      ordered.forEach((p) => garden.appendChild(createSeedEl(p, viewerEls)));
+      ordered.forEach((p) => garden.appendChild(createSeedEl(p, viewerEls, state)));
     } catch (err) {
       console.error("renderGarden falhou:", err);
     }
@@ -472,20 +485,18 @@ src(o2)
     const runBtn = document.getElementById("runHydra");
     const resetLink = document.getElementById("resetHydra");
 
-    if (!panel || !codeEl) return;
+    if (!panel || !codeEl) return null;
 
-    // carrega código do preset ativo no editor
     function syncEditorFromState() {
       const id = state.activePreset || "A";
       codeEl.value = state.presets[id]?.code || PRESET_DEFAULTS[id].code;
     }
 
-    // salva o texto do editor no preset ativo
     const saveEditorToStateDebounced = debounce(() => {
       const id = state.activePreset || "A";
       state.presets[id].code = codeEl.value;
       saveState(state);
-    }, 220);
+    }, 200);
 
     codeEl.addEventListener("input", saveEditorToStateDebounced);
 
@@ -495,10 +506,8 @@ src(o2)
       initHydraBackground();
 
       if (panel.hidden) {
-        // abre perto do botão (só pra primeira abertura)
         const r = openBtn?.getBoundingClientRect?.();
         panel.hidden = false;
-
         if (r) {
           const margin = 10;
           const left = clamp(r.left, margin, window.innerWidth - panel.offsetWidth - margin);
@@ -528,7 +537,6 @@ src(o2)
       ev.preventDefault();
       ev.stopPropagation();
 
-      // salva imediatamente o que está no textarea
       const id = state.activePreset || "A";
       state.presets[id].code = codeEl.value;
       saveState(state);
@@ -552,13 +560,9 @@ src(o2)
       runActivePreset(state);
     });
 
-    // inicializa conteúdo
     syncEditorFromState();
-
-    // habilita drag/resize flutuante
     enableFloatDragResize(panel);
 
-    // expõe um método pra quando trocar preset
     return { syncEditorFromState };
   }
 
@@ -569,7 +573,6 @@ src(o2)
     if (panel.dataset.floatReady === "1") return;
     panel.dataset.floatReady = "1";
 
-    // handles resize
     const dirs = ["n","s","e","w","ne","nw","se","sw"];
     dirs.forEach((d) => {
       const h = document.createElement("div");
@@ -698,11 +701,9 @@ src(o2)
         const id = btn.getAttribute("data-preset");
         if (!id || !state.presets[id]) return;
 
-        // salva o estado atual e troca
         state.activePreset = id;
         saveState(state);
 
-        // atualiza editor + roda preset
         miniApi?.syncEditorFromState?.();
         runActivePreset(state);
         setActiveUI();
@@ -718,7 +719,6 @@ src(o2)
   window.addEventListener("DOMContentLoaded", () => {
     const state = getOrInitState();
 
-    // refs mural
     const garden = document.getElementById("garden");
 
     const composer = document.getElementById("composer");
@@ -745,10 +745,10 @@ src(o2)
     // Mini editor
     const miniApi = setupMiniEditor(state);
 
-    // Preset dock (triângulos)
+    // Presets
     setupPresetDock(state, miniApi);
 
-    // abrir modal composer
+    // abrir composer
     openComposer?.addEventListener("click", () => {
       if (composer?.showModal) composer.showModal();
       else composer?.setAttribute("open", "");
@@ -757,7 +757,6 @@ src(o2)
     closeComposer?.addEventListener("click", () => closeDialogSafe(composer));
     closeViewer?.addEventListener("click", () => closeDialogSafe(viewer));
 
-    // fechar composer clicando fora
     composer?.addEventListener("click", (e) => {
       const formEl = composer.querySelector("form");
       if (!formEl) return;
@@ -768,7 +767,7 @@ src(o2)
       if (!inside) closeDialogSafe(composer);
     });
 
-    // submit
+    // submit mural
     form?.addEventListener("submit", async (e) => {
       e.preventDefault();
 
@@ -798,7 +797,7 @@ src(o2)
 
         await insertPost(text, mediaUrl, mediaType);
 
-        // ✅ PLANTAR: altera aleatoriamente um parâmetro do preset ativo (FX)
+        // plantar => muda FX do preset ativo
         mutateFxOnPlant(state);
 
         if (textEl) textEl.value = "";
@@ -806,7 +805,7 @@ src(o2)
 
         setStatus(statusEl, "Recebido ✶ Sua marca já está no céu.");
 
-        await renderGarden(garden, viewerEls);
+        await renderGarden(garden, viewerEls, state);
         setTimeout(() => closeDialogSafe(composer), 450);
       } catch (err) {
         console.error(err);
@@ -817,7 +816,7 @@ src(o2)
     });
 
     // render inicial
-    renderGarden(garden, viewerEls);
+    renderGarden(garden, viewerEls, state);
   });
 
 })();
