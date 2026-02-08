@@ -47,17 +47,14 @@
       name: "A",
       renderBuf: "o0",
       code: `// A — PARA VOCÊ, O QUE É SER POTIGUAR?
-// Nota: s0.initImage(URL) precisa de imagem com CORS liberado.
-// Para usar GIF sem erro: coloque o arquivo no repo e use:
-// s0.initImage("./assets/potiguar.gif")
 
-s0.initCam()
+s0.initImage("https://image2url.com/r2/default/gifs/1770579272000-56a42137-bb31-4f81-a13e-1a2ab3e05e8b.gif")
 s1.initCam()
 
 src(s0)
   .mult(src(s1).add(src(s1).scale(1.006)))
-  .modulate(noise(2, 0.15), .25)
-  .blend(src(s1), () => a.fft[1]*0.35)
+  .modulate(s0, .4)
+  .blend(s0, () => a.fft[1])
   .out(o0)
 
 a.show()
@@ -246,30 +243,22 @@ a.show()
     return window.matchMedia && window.matchMedia("(hover:hover) and (pointer:fine)").matches;
   }
 
-
-// =====================================================
-// SCRIPT LOADER (para presets com await loadScript)
-// =====================================================
-// Permite: await loadScript("https://.../hydra-text.js")
-// Obs: se o script já existe, resolve imediatamente.
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    try {
-      const existing = Array.from(document.scripts).find((s) => s.src === src);
-      if (existing) return resolve();
+    // =====================================================
+  // loadScript (para presets com `await loadScript(...)`)
+  // =====================================================
+  globalThis.loadScript = globalThis.loadScript || (url => new Promise((resolve, reject) => {
+    try{
+      if ([...document.scripts].some(s => s.src === url)) return resolve();
       const s = document.createElement("script");
-      s.src = src;
+      s.src = url;
       s.async = true;
       s.onload = () => resolve();
-      s.onerror = () => reject(new Error("Falha ao carregar script: " + src));
+      s.onerror = () => reject(new Error("Falha ao carregar script: " + url));
       document.head.appendChild(s);
-    } catch (e) {
-      reject(e);
-    }
-  });
-}
+    }catch(err){ reject(err); }
+  }));
 
-  // =====================================================
+// =====================================================
   // HYDRA (real) + DPR fit (corrige pixelado)
   // =====================================================
   let hydraReady = false;
@@ -296,9 +285,6 @@ function loadScript(src) {
     } catch {}
   }
 
-  // expõe no escopo global para uso dentro do eval
-  globalThis.loadScript = globalThis.loadScript || loadScript;
-
   function initHydraBackground() {
     if (hydraReady) return;
     if (typeof window.Hydra === "undefined") return;
@@ -319,19 +305,13 @@ function loadScript(src) {
     try { if (typeof window.hush === "function") window.hush(); } catch {}
   }
 
-  function safeEvalHydra(code) {
-    // Suporta presets com "await loadScript(...)".
-    // Se detectar "await", executa dentro de uma IIFE async e retorna a Promise.
-    const hasAwait = /await/.test(code);
-    if (hasAwait) {
-      const wrapped = `(async()=>{
-${code}
+  async function safeEvalHydra(code){
+    const src = String(code || "");
+    // Permite `await` no código do preset
+    const wrapped = `(async()=>{
+${src}
 })()`;
-      // eslint-disable-next-line no-eval
-      return (0, eval)(wrapped);
-    }
-    // eslint-disable-next-line no-eval
-    return (0, eval)(code);
+    return (0, eval)(wrapped);
   }
 
   function applyPresetFxToDisplay(presetId, state) {
@@ -359,7 +339,7 @@ ${code}
     }
   }
 
-  async function runActivePreset(state) {
+  async function runActivePreset(state){
     initHydraBackground();
     hushIfPossible();
 
@@ -368,9 +348,7 @@ ${code}
     if (!code) return;
 
     try {
-      const r = safeEvalHydra(code);
-      // se o preset usar await, safeEvalHydra retorna Promise
-      if (r && typeof r.then === "function") await r;
+      await safeEvalHydra(code);
     } catch (e) {
       console.error(e);
       alert("Erro no código Hydra do preset ativo. Veja o console.");
@@ -832,7 +810,7 @@ ${code}
       if (e.key === "Escape" && panel && !panel.hidden) closePanel(e);
     });
 
-    runBtn?.addEventListener("click", (ev) => {
+    runBtn?.addEventListener("click", async (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
 
@@ -840,10 +818,10 @@ ${code}
       state.presets[id].code = codeEl.value;
       saveState(state);
 
-      void runActivePreset(state);
+      await runActivePreset(state);
     });
 
-    resetLink?.addEventListener("click", (ev) => {
+    resetLink?.addEventListener("click", async (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
 
@@ -856,7 +834,7 @@ ${code}
       saveState(state);
 
       syncEditorFromState();
-      void runActivePreset(state);
+      await runActivePreset(state);
     });
 
     syncEditorFromState();
@@ -993,234 +971,231 @@ ${code}
     }
 
     buttons.forEach((btn) => {
-      btn.addEventListener("click", (ev) => {
+      btn.addEventListener("click", async (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
 
-        const id = String(// =====================================================
-  // PRINT / “foto” da tela (robusto)
-  // - compõe Hydra + UI em um canvas
-  // - evita html2canvas (WebGL + clip-path quebram)
+        const id = String(btn.getAttribute("data-preset") || "").toUpperCase();
+        if (!PRESET_IDS.includes(id)) return;
+
+        state.activePreset = id;
+        saveState(state);
+
+        miniApi?.syncEditorFromState?.();
+        await runActivePreset(state);
+        setActiveUI();
+      });
+    });
+
+    setActiveUI();
+  }
+
   // =====================================================
-  function filenameNow() {
+  // SOBRE (popup)
+  // =====================================================
+  function setupAboutPopup() {
+    const open = document.getElementById("openAbout");
+    const dlg = document.getElementById("about");
+    const close = document.getElementById("closeAbout");
+    if (!open || !dlg) return;
+
+    open.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dlg?.showModal?.();
+    });
+
+    close?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeDialogSafe(dlg);
+    });
+
+    // fecha clicando fora do card
+    dlg?.addEventListener("click", (e) => {
+      const card = dlg.querySelector(".card");
+      if (!card) return;
+      const r = card.getBoundingClientRect();
+      const inside =
+        e.clientX >= r.left && e.clientX <= r.right &&
+        e.clientY >= r.top && e.clientY <= r.bottom;
+      if (!inside) closeDialogSafe(dlg);
+    });
+  }
+
+    // =====================================================
+  // PRINT / “foto” da tela (Hydra + UI)
+  // =====================================================
+  function filenameNow(){
     const d = new Date();
-    const pad = (n) => String(n).padStart(2, "0");
+    const pad = (n) => String(n).padStart(2,"0");
     return `ceu-poetico-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.png`;
   }
 
-  function downloadBlob(blob, name) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1200);
+  function downloadBlob(blob, name){
+    // tenta compartilhar no mobile quando suportado
+    (async () => {
+      try{
+        const file = new File([blob], name, { type: "image/png" });
+        if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share){
+          await navigator.share({ files: [file], title: "Céu Poético" });
+          return;
+        }
+      }catch{}
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 1200);
+    })();
   }
 
-  function drawPill(ctx, x, y, w, h, alpha = 0.14) {
-    const r = h / 2;
+  function roundRectPath(ctx, x, y, w, h, r){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x, y+h, rr);
+    ctx.arcTo(x, y+h, x, y, rr);
+    ctx.arcTo(x, y, x+w, y, rr);
+    ctx.closePath();
+  }
+
+  function drawPill(ctx, r){
+    const x=r.left, y=r.top, w=r.width, h=r.height;
     ctx.save();
-    ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+    ctx.shadowColor = "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = 22;
+    ctx.shadowOffsetY = 12;
+
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
     ctx.strokeStyle = "rgba(255,255,255,0.22)";
     ctx.lineWidth = 2;
 
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
+    roundRectPath(ctx, x, y, w, h, h/2);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
   }
 
-  function drawTri(ctx, rect) {
-    const x = rect.left;
-    const y = rect.top;
-    const w = rect.width;
-    const h = rect.height;
-    const cx = x + w / 2;
+  function drawTriangle(ctx, r, active){
+    const x=r.left, y=r.top, w=r.width, h=r.height;
+    const cx = x + w/2;
 
-    // base shadow
     ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.65)";
-    ctx.shadowBlur = 18;
+    ctx.shadowColor = active ? "rgba(90,220,255,0.45)" : "rgba(90,220,255,0.22)";
+    ctx.shadowBlur = active ? 34 : 22;
     ctx.shadowOffsetY = 10;
 
-    ctx.fillStyle = "rgba(255,255,255,0.12)";
-    ctx.strokeStyle = "rgba(255,255,255,0.26)";
+    ctx.fillStyle = "rgba(255,255,255,0.10)";
+    ctx.strokeStyle = active ? "rgba(255,255,255,0.36)" : "rgba(255,255,255,0.22)";
     ctx.lineWidth = 2;
 
     ctx.beginPath();
-    ctx.moveTo(cx, y + h * 0.12);
-    ctx.lineTo(x + w * 0.90, y + h * 0.90);
-    ctx.lineTo(x + w * 0.10, y + h * 0.90);
+    ctx.moveTo(cx, y + h*0.12);
+    ctx.lineTo(x + w*0.90, y + h*0.90);
+    ctx.lineTo(x + w*0.10, y + h*0.90);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
     ctx.restore();
-
-    // glow
-    ctx.save();
-    ctx.shadowColor = "rgba(90,220,255,0.26)";
-    ctx.shadowBlur = 22;
-    ctx.beginPath();
-    ctx.moveTo(cx, y + h * 0.12);
-    ctx.lineTo(x + w * 0.90, y + h * 0.90);
-    ctx.lineTo(x + w * 0.10, y + h * 0.90);
-    ctx.closePath();
-    ctx.strokeStyle = "rgba(255,255,255,0.10)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.restore();
   }
 
-  async function takeScreenshot() {
+  async function takeScreenshot(){
     const hydraCanvas = document.getElementById("hydra-canvas");
-    if (!hydraCanvas) {
-      alert("Não achei o canvas do Hydra.");
-      return false;
-    }
+    if (!hydraCanvas){ alert("Hydra canvas não encontrado."); return false; }
 
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     const W = Math.floor(window.innerWidth * dpr);
     const H = Math.floor(window.innerHeight * dpr);
 
     const out = document.createElement("canvas");
-    out.width = W;
-    out.height = H;
+    out.width = W; out.height = H;
     const ctx = out.getContext("2d");
     if (!ctx) return false;
 
-    // 1) Hydra (fundo)
-    try {
+    // fundo Hydra
+    try{
       ctx.drawImage(hydraCanvas, 0, 0, W, H);
-    } catch (e) {
-      console.warn("drawImage(Hydra) falhou:", e);
-      alert("Não consegui capturar o Hydra (o preset pode ter mídia bloqueada pelo navegador).");
+    }catch(err){
+      console.warn(err);
+      alert("Não consegui capturar o fundo Hydra. Se o preset usa mídia externa sem CORS, o navegador bloqueia o print. Dica: coloque o GIF em ./assets e use s0.initImage('./assets/arquivo.gif').");
       return false;
     }
 
-    // 2) UI (triângulos/topbar/FABs)
+    // UI por cima (em CSS pixels)
     ctx.save();
     ctx.scale(dpr, dpr);
 
+    // topbar/nav
     const nav = document.querySelector(".nav");
-    if (nav) {
+    if (nav){
       const r = nav.getBoundingClientRect();
-      drawPill(ctx, r.left, r.top, r.width, r.height, 0.14);
+      drawPill(ctx, r);
 
       ctx.fillStyle = "rgba(255,255,255,0.88)";
-      ctx.font = '760 12.5px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.font = "760 12.5px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial";
       ctx.textBaseline = "middle";
-      let tx = r.left + 14;
-      const ty = r.top + r.height / 2;
+
+      let x = r.left + 14;
+      const y = r.top + r.height/2;
       nav.querySelectorAll("a").forEach((a) => {
         const t = (a.textContent || "").trim();
         if (!t) return;
-        ctx.fillText(t, tx, ty);
-        tx += ctx.measureText(t).width + 18;
+        ctx.fillText(t, x, y);
+        x += ctx.measureText(t).width + 18;
       });
     }
 
+    // triângulos
     document.querySelectorAll(".presetTri").forEach((el) => {
       const r = el.getBoundingClientRect();
-      drawTri(ctx, r);
+      drawTriangle(ctx, r, el.classList.contains("is-active"));
     });
 
+    // botões inferiores (pills)
     document.querySelectorAll(".fabWrap .fab").forEach((b) => {
       const r = b.getBoundingClientRect();
-      drawPill(ctx, r.left, r.top, r.width, r.height, 0.14);
+      drawPill(ctx, r);
 
-      const label = (b.getAttribute("aria-label") || b.textContent || "").trim();
-      const hasIcon = !!b.querySelector("svg");
-      if (!hasIcon) {
-        ctx.fillStyle = "rgba(255,255,255,0.92)";
-        ctx.font = '760 13px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial';
-        ctx.textBaseline = "middle";
-        ctx.fillText(label, r.left + 16, r.top + r.height / 2);
-      } else {
-        // desenha um ícone simples de câmera no centro
-        const cx = r.left + r.width / 2;
-        const cy = r.top + r.height / 2;
+      const svg = b.querySelector("svg");
+      if (svg){
+        // ícone simples de câmera
+        const cx = r.left + r.width/2;
+        const cy = r.top + r.height/2;
         ctx.save();
         ctx.translate(cx, cy);
         ctx.strokeStyle = "rgba(255,255,255,0.92)";
         ctx.lineWidth = 2;
-        // corpo
-        ctx.beginPath();
-        ctx.rect(-9, -6, 18, 12);
+        roundRectPath(ctx, -10, -7, 20, 14, 3);
         ctx.stroke();
-        // lente
         ctx.beginPath();
-        ctx.arc(0, 0, 3.2, 0, Math.PI * 2);
+        ctx.arc(0, 0, 3.2, 0, Math.PI*2);
         ctx.stroke();
         ctx.restore();
+      } else {
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.font = "760 13px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial";
+        ctx.textBaseline = "middle";
+        ctx.fillText((b.textContent || "").trim(), r.left + 16, r.top + r.height/2);
       }
     });
 
     ctx.restore();
 
-    const blob = await new Promise((res) => out.toBlob(res, "image/png", 0.95));
-    if (!blob) {
-      alert("Não consegui gerar o PNG agora.");
-      return false;
-    }
+    const blob = await new Promise((res)=> out.toBlob(res, "image/png", 0.95));
+    if (!blob){ alert("Falha ao gerar PNG."); return false; }
     downloadBlob(blob, filenameNow());
     return true;
   }
 
-  // =====================================================
-  // STARTrevokeObjectURL(url), 1200);
-  }
-
-  async function takeScreenshot() {
-    const name = filenameNow();
-
-    // 1) full-page (UI + bolhas + hydra), se html2canvas existir
-    try {
-      if (typeof window.html2canvas === "function") {
-        const canvas = await window.html2canvas(document.body, {
-          backgroundColor: null,
-          useCORS: true,
-          logging: false,
-          scale: Math.min(window.devicePixelRatio || 1, 2),
-        });
-        const blob = await new Promise((res) => canvas.toBlob(res, "image/png", 0.95));
-        if (blob) {
-          await downloadBlob(blob, name);
-          return true;
-        }
-      }
-    } catch (e) {
-      console.warn("Screenshot full falhou, tentando fallback:", e);
-    }
-
-    // 2) fallback: só Hydra
-    try {
-      const hydraCanvas = document.getElementById("hydra-canvas");
-      if (hydraCanvas && hydraCanvas.toBlob) {
-        const blob = await new Promise((res) => hydraCanvas.toBlob(res, "image/png", 0.95));
-        if (blob) {
-          await downloadBlob(blob, name);
-          return true;
-        }
-      }
-    } catch (e) {
-      console.warn("Fallback Hydra falhou:", e);
-    }
-
-    alert("Não consegui gerar o print neste dispositivo/navegador.");
-    return false;
-  }
 // =====================================================
   // START
   // =====================================================
-  window.addEventListener("DOMContentLoaded", () => {
+  window.addEventListener("DOMContentLoaded", async () => {
     const state = getOrInitState();
 
     // refs mural
@@ -1229,7 +1204,6 @@ ${code}
     const composer = document.getElementById("composer");
     const openComposer = document.getElementById("openComposer");
     const printShot = document.getElementById("printShot");
-
     const closeComposer = document.getElementById("closeComposer");
 
     const form = document.getElementById("muralForm");
@@ -1272,7 +1246,7 @@ ${code}
 
     // Hydra
     initHydraBackground();
-    void runActivePreset(state);
+    runActivePreset(state);
 
     // Mini editor
     const miniApi = setupMiniEditor(state);
@@ -1280,11 +1254,10 @@ ${code}
     // Preset dock (A/B/C/D)
     setupPresetDock(state, miniApi);
 
-    // Print (foto) — salva uma imagem
+    // Print (foto)
     printShot?.addEventListener("click", async () => {
       await takeScreenshot();
     });
-
 
     // abrir composer
     openComposer?.addEventListener("click", () => {
