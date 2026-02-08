@@ -48,8 +48,8 @@ body{
   top:0; left:0; right:0;
   display:flex;
   align-items:center;
-  justify-content:flex-start;
-  padding: calc(32px + env(safe-area-inset-top)) 22px 14px 22px;
+  justify-content:flex-end;
+  padding: calc(24px + env(safe-area-inset-top)) 22px 14px 22px;
   z-index: 120;
   pointer-events:none;
 }
@@ -93,20 +93,6 @@ body{
   z-index: 0;
   pointer-events: none;
 }
-.hydraGlass{
-  position: fixed;
-  inset: 0;
-  z-index: 0; /* acima do canvas (mesma camada), abaixo do garden */
-  pointer-events: none;
-
-  /* “vidro” sutil sobre o Hydra (sem perder resolução) */
-  background:
-    radial-gradient(120% 120% at 50% 30%, rgba(255,255,255,0.05), transparent 55%),
-    linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.14));
-  backdrop-filter: blur(6px) saturate(120%);
-  -webkit-backdrop-filter: blur(6px) saturate(120%);
-}
-
 
 /* =========================
    Garden / Seeds
@@ -514,84 +500,27 @@ input[type="file"]{
   50%{ transform: translateY(-10px) rotate(1deg); }
   100%{ transform: translateY(0px) rotate(-1deg); }
 }
-@keyframes glowBreathe{
-  0%{
-    box-shadow:
-      0 18px 65px rgba(0,0,0,0.36),
-      inset 0 1px 0 rgba(255,255,255,0.18),
-      0 0 0 1px rgba(255,255,255,0.06),
-      0 0 18px rgba(90, 220, 255, 0.18);
-  }
-  50%{
-    box-shadow:
-      0 18px 65px rgba(0,0,0,0.36),
-      inset 0 1px 0 rgba(255,255,255,0.20),
-      0 0 0 1px rgba(255,255,255,0.06),
-      0 0 28px rgba(90, 220, 255, 0.30);
-  }
-  100%{
-    box-shadow:
-      0 18px 65px rgba(0,0,0,0.36),
-      inset 0 1px 0 rgba(255,255,255,0.18),
-      0 0 0 1px rgba(255,255,255,0.06),
-      0 0 18px rgba(90, 220, 255, 0.18);
-  }
-}
-
 
 .presetTri{
   width: 46px;
   height: 46px;
   cursor: pointer;
-  position: relative;
-  isolation: isolate;
 
-  /* mesma “pele” das bolhas (glass + stroke) */
-  border: 1px solid rgba(255,255,255,0.22);
+  border: 1px solid rgba(255,255,255,0.28);
   background:
-    radial-gradient(120% 140% at 20% 0%, rgba(255,255,255,0.12), transparent 55%),
-    linear-gradient(180deg, rgba(10,10,20,0.58), rgba(10,10,18,0.44));
-
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
+    radial-gradient(120% 140% at 22% 0%, rgba(255,255,255,0.18), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06));
+  backdrop-filter: blur(14px) saturate(170%);
+  -webkit-backdrop-filter: blur(14px) saturate(170%);
 
   clip-path: polygon(50% 8%, 92% 88%, 8% 88%);
 
   box-shadow:
-    0 34px 110px rgba(0,0,0,0.48),
-    inset 0 1px 0 rgba(255,255,255,0.14),
+    0 18px 65px rgba(0,0,0,0.36),
+    inset 0 1px 0 rgba(255,255,255,0.26),
     0 0 0 1px rgba(255,255,255,0.06);
-
-  transition: transform .15s ease, filter .15s ease;
-  animation: triFloat 6.2s ease-in-out infinite, glowBreathe 3.8s ease-in-out infinite;
-}
-
-/* stroke extra (tipo “borda dupla” das bolhas) */
-.presetTri::before{
-  content:"";
-  position:absolute;
-  inset: -1px;
-  z-index: -1;
-  clip-path: polygon(50% 8%, 92% 88%, 8% 88%);
-  border: 1px solid rgba(255,255,255,0.10);
-  filter: blur(0.2px);
-}
-
-/* brilho interno sutil */
-.presetTri::after{
-  content:"";
-  position:absolute;
-  inset: 0;
-  clip-path: polygon(50% 8%, 92% 88%, 8% 88%);
-  background: radial-gradient(120% 120% at 18% 0%, rgba(255,255,255,0.14), transparent 60%);
-  opacity: 0.9;
-  mix-blend-mode: screen;
-  pointer-events:none;
-}
-
-.presetTri:hover{
-  transform: translateY(-2px) scale(1.02);
-  filter: saturate(1.05);
+  transition: transform .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease;
+  animation: triFloat 5.6s ease-in-out infinite;
 }
 
 .presetTri:nth-child(2){ animation-duration: 6.3s; animation-delay: -1.4s; }
