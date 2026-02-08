@@ -723,15 +723,19 @@ window.addEventListener("resize", () => {
   // ---------- DRAG ----------
   let drag = null;
 
-  topbar.addEventListener("pointerdown", (e) => {
-    if (panel.hidden) return;
-    e.preventDefault();
+ topbar.addEventListener("pointerdown", (e) => {
+  if (panel.hidden) return;
 
-    const r = panel.getBoundingClientRect();
-    drag = { startX: e.clientX, startY: e.clientY, left: r.left, top: r.top };
+  // ✅ NÃO iniciar drag se clicar em algo interativo (ex: botão ✕)
+  if (e.target.closest("button, a, input, textarea, select, label")) return;
 
-    topbar.setPointerCapture(e.pointerId);
-  });
+  e.preventDefault();
+
+  const r = panel.getBoundingClientRect();
+  drag = { startX: e.clientX, startY: e.clientY, left: r.left, top: r.top };
+
+  topbar.setPointerCapture(e.pointerId);
+});
 
   topbar.addEventListener("pointermove", (e) => {
     if (!drag) return;
