@@ -25,6 +25,12 @@
   <main class="stage">
   <canvas id="hydra-canvas" class="hydra-canvas" aria-hidden="true"></canvas>
   <div id="garden" class="garden" aria-label="Mural do festival"></div>
+    <div id="presetDock" class="presetDock" aria-label="Presets do céu">
+  <button class="presetTri" data-preset="A" type="button" aria-label="Preset A"></button>
+  <button class="presetTri" data-preset="B" type="button" aria-label="Preset B"></button>
+  <button class="presetTri" data-preset="C" type="button" aria-label="Preset C"></button>
+</div>
+
 
   <!-- ✅ barra fixa com os dois botões no mobile -->
   <div class="fabbar" aria-label="Ações">
@@ -45,10 +51,11 @@
 
     <textarea id="hydraCode" spellcheck="false"></textarea>
 
-    <div class="hydra-mini__actions">
-      <button id="runHydra" class="btn--mini" type="button">clique-me para rodar o código</button>
-    </div>
-  </div>
+  <div class="hydra-mini__actions">
+  <a id="resetHydra" class="resetLink" href="#">resetar preset</a>
+  <button id="runHydra" class="btn--mini" type="button">rodar</button>
+</div>
+
 </main>
 
   <dialog id="composer" class="dialog" aria-label="Enviar para o mural">
