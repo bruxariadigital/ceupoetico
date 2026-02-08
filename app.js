@@ -1,105 +1,109 @@
 (() => {
   "use strict";
 
-  // ===== HYDRA LAYER (background vivo) =====
-let hydraReady = false;
-let hoverBoost = 0;
+  // =====================================================
+  // HYDRA BACKGROUND (cam + parâmetros vivos + hover)
+  // =====================================================
+  let hydraReady = false;
+  let hoverBoost = 0;
 
-const params = {
-  blend: 0.3,
-  scale: 0.5,
-  mod: 0.2,
-  luma: 1.0,
-  hue: 2.0,
-  contrast: 1.0,
-  colorama: 0.7,
-  kaleid: 1.0,
-  sat: 1.0,
-  bright: 0.0
-};
+  const params = {
+    blend: 0.3,
+    scale: 0.5,
+    mod: 0.2,
+    luma: 1.0,
+    hue: 2.0,
+    contrast: 1.0,
+    colorama: 0.7,
+    kaleid: 1.0,
+    sat: 1.0,
+    bright: 0.0
+  };
 
-function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
-
-function hash01(str){
-  let h = 2166136261;
-  for (let i=0;i<str.length;i++){
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+  function clamp(v, min, max) {
+    return Math.max(min, Math.min(max, v));
   }
-  return (h >>> 0) / 4294967296;
-}
 
-function applySeedToHydra(seedText, mediaType){
-  const t = (seedText || "").trim();
-  const r = hash01(t || crypto.randomUUID());
+  function hash01(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0) / 4294967296;
+  }
 
-  // escolhe 1 parâmetro “principal” por semente
-  const pick = Math.floor(r * 7);
+  function applySeedToHydra(seedText, mediaType) {
+    const t = (seedText || "").trim();
+    const r = hash01(t || (crypto?.randomUUID?.() || String(Date.now())));
 
-  if (pick === 0) params.colorama = clamp(params.colorama + 0.15, 0, 4);
-  if (pick === 1) params.hue      = clamp(params.hue + 0.12, 0, 6);
-  if (pick === 2) params.blend    = clamp(params.blend + 0.04, 0, 1);
-  if (pick === 3) params.scale    = clamp(params.scale + 0.06, 0, 2);
-  if (pick === 4) params.mod      = clamp(params.mod + 0.05, 0, 2);
-  if (pick === 5) params.contrast = clamp(params.contrast + 0.08, 0, 3);
-  if (pick === 6) params.kaleid   = clamp(params.kaleid + 0.10, 0, 4);
+    const pick = Math.floor(r * 7);
 
-  // se tiver mídia, dá um “tint” extra
-  if ((mediaType || "").startsWith("image/")) params.sat = clamp(params.sat + 0.08, 0, 3);
-  if ((mediaType || "").startsWith("video/")) params.bright = clamp(params.bright + 0.02, -0.3, 0.6);
-}
+    if (pick === 0) params.colorama = clamp(params.colorama + 0.15, 0, 4);
+    if (pick === 1) params.hue      = clamp(params.hue + 0.12, 0, 6);
+    if (pick === 2) params.blend    = clamp(params.blend + 0.04, 0, 1);
+    if (pick === 3) params.scale    = clamp(params.scale + 0.06, 0, 2);
+    if (pick === 4) params.mod      = clamp(params.mod + 0.05, 0, 2);
+    if (pick === 5) params.contrast = clamp(params.contrast + 0.08, 0, 3);
+    if (pick === 6) params.kaleid   = clamp(params.kaleid + 0.10, 0, 4);
 
-function initHydraBackground(){
-  if (hydraReady) return;
-  if (typeof window.Hydra === "undefined") return; // hydra-synth ainda não carregou
+    if ((mediaType || "").startsWith("image/")) {
+      params.sat = clamp(params.sat + 0.08, 0, 3);
+    }
+    if ((mediaType || "").startsWith("video/")) {
+      params.bright = clamp(params.bright + 0.02, -0.3, 0.6);
+    }
+  }
 
-  const canvas = document.getElementById("hydra-canvas");
-  if (!canvas) return;
+  function initHydraBackground() {
+    if (hydraReady) return;
+    if (typeof window.Hydra === "undefined") return;
 
-  // cria Hydra
-  // makeGlobal=true para permitir eval no mini-editor (rodar código)
-  // detectAudio=true pra usar a.fft
-  // eslint-disable-next-line no-undef
-  new Hydra({ canvas, detectAudio: true, makeGlobal: true });
+    const canvas = document.getElementById("hydra-canvas");
+    if (!canvas) return;
 
-  // patch base (o seu), só que com parâmetros reativos + hoverBoost
-  s0.initCam();
-  speed = 0.1;
+    // ✅ mantemos detectAudio true porque você usa a.fft / a.show()
+    // Observação: isso gera o warning do ScriptProcessorNode (explico abaixo).
+    // eslint-disable-next-line no-undef
+    new Hydra({ canvas, detectAudio: true, makeGlobal: true });
 
-  src(s0)
-    .blend(src(o0), () => params.blend)
-    .modulateScale(src(s0), () => params.scale)
-    .modulate(src(s0).color(() => a.fft[1]), () => params.mod)
-    .luma(() => params.luma)
-    .modulate(noise(() => a.fft[1], 2, 2))
-    .hue(() => params.hue, 2)
-    .contrast(() => params.contrast + hoverBoost * 0.45)
-    .blend(src(s0).colorama(() => params.colorama + hoverBoost * 0.7))
-    .modulateKaleid(noise(0.5, 1), () => params.kaleid)
-    .saturate(() => params.sat + hoverBoost * 0.9)
-    .brightness(() => params.bright + hoverBoost * 0.18)
-    .out(o0);
+    // patch base com params reativos
+    s0.initCam();
+    speed = 0.1;
 
-  src(o0).diff(src(o0, 0.5).scrollX(0.2, 0.1)).out(o1);
-  render(o1);
+    src(s0)
+      .blend(src(o0), () => params.blend)
+      .modulateScale(src(s0), () => params.scale)
+      .modulate(src(s0).color(() => a.fft[1]), () => params.mod)
+      .luma(() => params.luma)
+      .modulate(noise(() => a.fft[1], 2, 2))
+      .hue(() => params.hue, 2)
+      .contrast(() => params.contrast + hoverBoost * 0.45)
+      .blend(src(s0).colorama(() => params.colorama + hoverBoost * 0.7))
+      .modulateKaleid(noise(0.5, 1), () => params.kaleid)
+      .saturate(() => params.sat + hoverBoost * 0.9)
+      .brightness(() => params.bright + hoverBoost * 0.18)
+      .out(o0);
 
-  a.setBins(9);
-  a.setCutoff(8);
-  a.show();
+    src(o0).diff(src(o0, 0.5).scrollX(0.2, 0.1)).out(o1);
+    render(o1);
 
-  hydraReady = true;
-}
+    a.setBins(9);
+    a.setCutoff(8);
+    a.show();
 
+    hydraReady = true;
+  }
 
-  // ====== CONFIG ======
+  // =====================================================
+  // SUPABASE
+  // =====================================================
   const SUPABASE_URL = "https://nroguehkffzgerirbdcn.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_87bQ1cjlVd6gw1Ugh45eYg_P8mTW2ZJ";
-
-  // ====== LIMITES ======
   const MAX_BYTES = 2 * 1024 * 1024; // 2MB
 
-  // ====== Supabase (dentro do escopo local) ======
   let sb = null;
+
   function supabaseReady() {
     if (typeof window.supabase === "undefined") return false;
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return false;
@@ -107,14 +111,17 @@ function initHydraBackground(){
     return true;
   }
 
-  // ====== Helpers ======
-  function setStatus(statusEl, msg) {
-    if (!statusEl) return;
-    statusEl.textContent = msg || "";
+  // =====================================================
+  // HELPERS
+  // =====================================================
+  function setStatus(el, msg) {
+    if (!el) return;
+    el.textContent = msg || "";
   }
 
   function closeDialogSafe(dlg) {
     try { dlg.close(); } catch {}
+    try { dlg.removeAttribute("open"); } catch {}
   }
 
   function validateFile(file) {
@@ -132,7 +139,9 @@ function initHydraBackground(){
     }
   }
 
-  // ====== Garden RNG ======
+  // =====================================================
+  // SEEDED RNG + GLYPHS
+  // =====================================================
   function hashString(str) {
     let h = 2166136261;
     for (let i = 0; i < str.length; i++) {
@@ -155,7 +164,9 @@ function initHydraBackground(){
     return options[hashString(id) % options.length];
   }
 
-  // ====== Supabase: storage + db ======
+  // =====================================================
+  // SUPABASE: storage + db
+  // =====================================================
   async function uploadMediaIfAny(file) {
     if (!file) return null;
 
@@ -196,18 +207,15 @@ function initHydraBackground(){
     return data || [];
   }
 
-  // ====== UI ======
-  function clearGarden(garden) {
-    if (garden) garden.innerHTML = "";
-  }
-
+  // =====================================================
+  // VIEWER
+  // =====================================================
   function openViewer(viewer, viewerImg, viewerText, viewerMeta, post) {
     const mediaType = post.media_type || "";
     const isImage = mediaType.startsWith("image/");
     const isVideo = mediaType.startsWith("video/");
     const isAudio = mediaType.startsWith("audio/");
 
-    // reset
     if (viewerImg) {
       viewerImg.style.display = "none";
       viewerImg.removeAttribute("src");
@@ -216,14 +224,12 @@ function initHydraBackground(){
 
     let bodyText = post.text || "";
 
-    // imagem inline
     if (post.image_url && isImage && viewerImg) {
       viewerImg.src = post.image_url;
       viewerImg.style.display = "block";
       viewerImg.alt = "Imagem enviada ao mural";
     }
 
-    // vídeo/áudio: link (simples)
     if (post.image_url && (isVideo || isAudio)) {
       bodyText += (bodyText ? "\n\n" : "") + `Arquivo: ${post.image_url}`;
     } else if (post.image_url && !isImage) {
@@ -236,110 +242,339 @@ function initHydraBackground(){
     viewer?.showModal?.();
   }
 
+  // =====================================================
+  // GARDEN
+  // =====================================================
   function createSeedEl(post, idx, openFn) {
-  const el = document.createElement("button");
-  el.className = "seed";
-  el.type = "button";
-  el.setAttribute("aria-label", "Abrir postagem do mural");
+    const el = document.createElement("button");
+    el.className = "seed";
+    el.type = "button";
+    el.setAttribute("aria-label", "Abrir postagem do mural");
 
-  const base = hashString(post.id);
-  const s1 = base ^ (idx * 2654435761);
-  const s2 = (base + 1013904223) ^ (idx * 1597334677);
+    const base = hashString(post.id);
+    const s1 = base ^ (idx * 2654435761);
+    const s2 = (base + 1013904223) ^ (idx * 1597334677);
 
-  const x = 6 + seeded01(s1) * 88;
-  const y = 12 + seeded01(s2) * 76;
+    const x = 6 + seeded01(s1) * 88;
+    const y = 12 + seeded01(s2) * 76;
 
-  el.style.left = x.toFixed(2) + "%";
-  el.style.top = y.toFixed(2) + "%";
+    el.style.left = x.toFixed(2) + "%";
+    el.style.top = y.toFixed(2) + "%";
 
-  const phaseSeed = (base ^ 0x9e3779b9) >>> 0;
-  const dur = 4.8 + seeded01(phaseSeed) * 4.5;
-  el.style.animationDuration = dur.toFixed(2) + "s";
-  el.style.animationDelay =
-    (-seeded01(phaseSeed ^ 12345) * dur).toFixed(2) + "s";
+    const phaseSeed = (base ^ 0x9e3779b9) >>> 0;
+    const dur = 4.8 + seeded01(phaseSeed) * 4.5;
+    el.style.animationDuration = dur.toFixed(2) + "s";
+    el.style.animationDelay = (-seeded01(phaseSeed ^ 12345) * dur).toFixed(2) + "s";
 
-  const mediaType = post.media_type || "";
-  const isImage = mediaType.startsWith("image/");
+    const mediaType = post.media_type || "";
+    const isImage = mediaType.startsWith("image/");
 
-  // ===== conteúdo visível da seed =====
-  if (post.image_url && isImage) {
-    const img = document.createElement("img");
-    img.className = "seedThumb";
-    img.src = post.image_url;
-    img.alt = "";
-    el.appendChild(img);
-  } else {
-    const span = document.createElement("span");
-    span.className = "emoji";
-    span.textContent = pickGlyph(post.id);
-    el.appendChild(span);
+    if (post.image_url && isImage) {
+      const img = document.createElement("img");
+      img.className = "seedThumb";
+      img.src = post.image_url;
+      img.alt = "";
+      el.appendChild(img);
+    } else {
+      const span = document.createElement("span");
+      span.className = "emoji";
+      span.textContent = pickGlyph(post.id);
+      el.appendChild(span);
+    }
+
+    // bubble preview
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+
+    if (post.image_url && isImage) {
+      const bImg = document.createElement("img");
+      bImg.src = post.image_url;
+      bImg.alt = "";
+      bubble.appendChild(bImg);
+    }
+
+    if (post.text) {
+      const bText = document.createElement("div");
+      bText.className = "bubbleText";
+      bText.textContent = post.text;
+      bubble.appendChild(bText);
+    }
+
+    const hint = document.createElement("div");
+    hint.className = "bubbleHint";
+    hint.textContent = "clique para abrir";
+    bubble.appendChild(hint);
+
+    el.appendChild(bubble);
+
+    // click abre viewer
+    el.addEventListener("click", openFn);
+
+    // ✅ hover no hydra com aleatoriedade por hover (pequena variação)
+    el.addEventListener("mouseenter", () => {
+      hoverBoost = 0.65 + Math.random() * 0.7;
+    });
+    el.addEventListener("mouseleave", () => {
+      hoverBoost = 0;
+    });
+
+    return el;
   }
-
-  // ===== BUBBLE (HOVER PREVIEW) =====
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-
-  // imagem na bolha (se existir)
-  if (post.image_url && isImage) {
-    const bImg = document.createElement("img");
-    bImg.src = post.image_url;
-    bImg.alt = "";
-    bubble.appendChild(bImg);
-  }
-
-  // texto da bolha
-  if (post.text) {
-    const bText = document.createElement("div");
-    bText.className = "bubbleText";
-    bText.textContent = post.text;
-    bubble.appendChild(bText);
-  }
-
-  // hint
-  const hint = document.createElement("div");
-  hint.className = "bubbleHint";
-  hint.textContent = "clique para abrir";
-  bubble.appendChild(hint);
-
-  el.appendChild(bubble);
-
-  // clique abre viewer completo
-  el.addEventListener("click", openFn);
-  // hover da seed intensifica o Hydra
-el.addEventListener("mouseenter", () => { hoverBoost = 1; });
-el.addEventListener("mouseleave", () => { hoverBoost = 0; });
-
-
-  return el;
-}
 
   async function renderGarden(garden, viewerEls) {
-  if (!garden) return;
-  if (!supabaseReady()) return;
+    if (!garden) return;
+    if (!supabaseReady()) return;
 
-  try {
-    const posts = await fetchPosts();
-    const ordered = (posts || []).reverse();
+    try {
+      const posts = await fetchPosts();
+      const ordered = (posts || []).reverse();
 
-    garden.innerHTML = "";
-
-    ordered.forEach((p, idx) => {
-      const openFn = () => openViewer(
-        viewerEls.viewer,
-        viewerEls.viewerImg,
-        viewerEls.viewerText,
-        viewerEls.viewerMeta,
-        p
-      );
-      garden.appendChild(createSeedEl(p, idx, openFn));
-    });
-  } catch (err) {
-    console.error("renderGarden falhou:", err);
+      garden.innerHTML = "";
+      ordered.forEach((p, idx) => {
+        const openFn = () => openViewer(
+          viewerEls.viewer,
+          viewerEls.viewerImg,
+          viewerEls.viewerText,
+          viewerEls.viewerMeta,
+          p
+        );
+        garden.appendChild(createSeedEl(p, idx, openFn));
+      });
+    } catch (err) {
+      console.error("renderGarden falhou:", err);
+    }
   }
-}
 
+  // =====================================================
+  // HYDRA MINI EDITOR (open/close/run + drag/resize)
+  // =====================================================
+  const DEFAULT_PATCH = `
+///bruxariadigital@gmail.com
 
-  // ====== START ======
+// olá, mundo.
+speed=.2
+
+osc(.33,3.3,5.3)
+.blend(shape(3, .2,.3).mult(
+(osc(2.3,3.3,3.3).modulateRotate(osc(3.3,3.3,3.3).hue(3).shift(2))).rotate(-.003,-.00004).color(1,1,8)
+))
+.mult(osc(.33,.33,3.3)).modulateScale(noise(3.3,3.3,3.3)).diff(osc(5.33,.3,4))
+.mult(shape(3,.3,.2)).color(1)
+.out(o1)
+
+src(o0).modulateHue(src(o0).scale(1.2))
+.layer(src(o1).luma(0.3, 2e-6),.9).color(1)
+.modulateRotate(src(o1).rotate(-.003,.00004).modulate(osc(.2,.5,4))).shift(8).rotate(.003,[.00004, -.00004]).hue(5).modulateScrollX(osc(3,.5,3.))
+.modulateScale(src(o0),[.4,.9])
+.out()
+`;
+
+  function setupHydraMini() {
+    const openBtn = document.getElementById("openHydraMini");
+    const panel = document.getElementById("hydraMini");
+    const closeBtn = document.getElementById("closeHydraMini");
+    const codeEl = document.getElementById("hydraCode");
+    const runBtn = document.getElementById("runHydra");
+
+    if (!panel) return;
+
+    // começa fechado
+    panel.hidden = true;
+
+    // preenche só se estiver vazio
+    if (codeEl && !codeEl.value.trim()) codeEl.value = DEFAULT_PATCH;
+
+    function positionNearButton() {
+      if (!openBtn) return;
+      const r = openBtn.getBoundingClientRect();
+      const margin = 10;
+
+      panel.hidden = false; // precisa aparecer pra medir
+
+      const left = clamp(r.left, margin, window.innerWidth - panel.offsetWidth - margin);
+      const top = clamp(r.top - panel.offsetHeight - 10, margin, window.innerHeight - panel.offsetHeight - margin);
+
+      panel.style.left = `${left}px`;
+      panel.style.top = `${top}px`;
+    }
+
+    function openPanel(ev) {
+      ev?.preventDefault?.();
+      ev?.stopPropagation?.();
+      initHydraBackground();
+      if (panel.hidden) positionNearButton();
+      else panel.hidden = true;
+    }
+
+    function closePanel(ev) {
+      ev?.preventDefault?.();
+      ev?.stopPropagation?.();
+      panel.hidden = true;
+    }
+
+    openBtn?.addEventListener("click", openPanel);
+    closeBtn?.addEventListener("click", closePanel);
+
+    // ESC fecha
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !panel.hidden) closePanel(e);
+    });
+
+    // Rodar
+    runBtn?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+
+      initHydraBackground();
+
+      const code = (codeEl?.value || "").trim();
+      if (!code) {
+        alert("O editor está vazio.");
+        return;
+      }
+      try {
+        (0, eval)(code);
+      } catch (e) {
+        console.error(e);
+        alert("Erro no código Hydra. (Veja o console.)");
+      }
+    });
+
+    // reposiciona se mudar tamanho da janela (só se estiver perto do botão)
+    window.addEventListener("resize", () => {
+      if (!panel.hidden) {
+        // apenas clampa pra dentro da viewport
+        const r = panel.getBoundingClientRect();
+        const margin = 8;
+        const left = clamp(r.left, margin, window.innerWidth - r.width - margin);
+        const top  = clamp(r.top,  margin, window.innerHeight - r.height - margin);
+        panel.style.left = `${left}px`;
+        panel.style.top  = `${top}px`;
+      }
+    });
+
+    enableFloatDragResize(panel);
+  }
+
+  function enableFloatDragResize(panel) {
+    const topbar = panel.querySelector(".hydra-mini__top");
+    if (!topbar) return;
+
+    // evita duplicar se o JS for carregado duas vezes
+    if (panel.dataset.floatReady === "1") return;
+    panel.dataset.floatReady = "1";
+
+    const dirs = ["n","s","e","w","ne","nw","se","sw"];
+    dirs.forEach((d) => {
+      const h = document.createElement("div");
+      h.className = `resize-handle resize-handle--${d}`;
+      h.dataset.dir = d;
+      panel.appendChild(h);
+    });
+
+    const isInteractive = (el) => !!el?.closest?.("button, a, input, textarea, select, label");
+
+    // DRAG
+    let drag = null;
+
+    topbar.addEventListener("pointerdown", (e) => {
+      if (panel.hidden) return;
+
+      // ✅ esse é o FIX do desktop: clicar no ✕ NÃO vira drag
+      if (isInteractive(e.target)) return;
+
+      e.preventDefault();
+
+      const r = panel.getBoundingClientRect();
+      drag = { startX: e.clientX, startY: e.clientY, left: r.left, top: r.top };
+      topbar.setPointerCapture(e.pointerId);
+    });
+
+    topbar.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+
+      const margin = 8;
+      const maxLeft = window.innerWidth - panel.offsetWidth - margin;
+      const maxTop  = window.innerHeight - panel.offsetHeight - margin;
+
+      panel.style.left = `${clamp(drag.left + dx, margin, maxLeft)}px`;
+      panel.style.top  = `${clamp(drag.top  + dy, margin, maxTop)}px`;
+    });
+
+    const stopDrag = () => { drag = null; };
+    topbar.addEventListener("pointerup", stopDrag);
+    topbar.addEventListener("pointercancel", stopDrag);
+
+    // RESIZE
+    let resize = null;
+
+    panel.addEventListener("pointerdown", (e) => {
+      const handle = e.target.closest(".resize-handle");
+      if (!handle || panel.hidden) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const r = panel.getBoundingClientRect();
+      resize = {
+        dir: handle.dataset.dir,
+        startX: e.clientX,
+        startY: e.clientY,
+        left: r.left,
+        top: r.top,
+        width: r.width,
+        height: r.height
+      };
+
+      panel.setPointerCapture(e.pointerId);
+    });
+
+    panel.addEventListener("pointermove", (e) => {
+      if (!resize) return;
+
+      const dx = e.clientX - resize.startX;
+      const dy = e.clientY - resize.startY;
+
+      const minW = 280;
+      const minH = 200;
+
+      let left = resize.left;
+      let top = resize.top;
+      let width = resize.width;
+      let height = resize.height;
+
+      const dir = resize.dir;
+
+      if (dir.includes("e")) width = resize.width + dx;
+      if (dir.includes("w")) { width = resize.width - dx; left = resize.left + dx; }
+
+      if (dir.includes("s")) height = resize.height + dy;
+      if (dir.includes("n")) { height = resize.height - dy; top = resize.top + dy; }
+
+      width = Math.max(minW, width);
+      height = Math.max(minH, height);
+
+      const margin = 8;
+      left = clamp(left, margin, window.innerWidth - width - margin);
+      top  = clamp(top,  margin, window.innerHeight - height - margin);
+
+      panel.style.left = `${left}px`;
+      panel.style.top = `${top}px`;
+      panel.style.width = `${width}px`;
+      panel.style.height = `${height}px`;
+    });
+
+    const stopResize = () => { resize = null; };
+    panel.addEventListener("pointerup", stopResize);
+    panel.addEventListener("pointercancel", stopResize);
+  }
+
+  // =====================================================
+  // START
+  // =====================================================
   window.addEventListener("DOMContentLoaded", () => {
     // refs
     const garden = document.getElementById("garden");
@@ -362,271 +597,13 @@ el.addEventListener("mouseleave", () => { hoverBoost = 0; });
 
     const viewerEls = { viewer, viewerImg, viewerText, viewerMeta };
 
-   // Hydra: inicia (se a lib já carregou)
-initHydraBackground();
+    // Hydra
+    initHydraBackground();
 
-// Mini editor popup
-const openHydraMini = document.getElementById("openHydraMini");
-const hydraMini = document.getElementById("hydraMini");
-const closeHydraMini = document.getElementById("closeHydraMini");
-const hydraCode = document.getElementById("hydraCode");
-const runHydra = document.getElementById("runHydra");
+    // Hydra mini editor
+    setupHydraMini();
 
-const DEFAULT_PATCH = `
-///bruxariadigital@gmail.com
-
-
-
-//olá, mundo.
-
-speed=.2 // intensidade
-									//sinto que estou saindo de um casulo
-                   // para algumas pessoas, viver é um manifesto de si mesmo
-
-osc(.33,3.3,5.3)//.modulateHue(-3.3,-3.3,-3.3)
-.blend(shape(3, .2,.3).mult(
-(osc(2.3,3.3,3.3).modulateRotate(osc(3.3,3.3,3.3).hue(3).shift(2))).rotate(-.003,-.00004).color(1,1,8)
-  
-  ))
-.mult(osc(.33,.33,3.3)).modulateScale(noise(3.3,3.3,3.3)).diff(osc(5.33,.3,4))
-.mult(shape(3,.3,.2)).color(1)
-
-  .out(o1)
-
-src(o0).modulateHue(src(o0).scale(1.2))
-.layer(src(o1).luma(0.3, 2e-6),.9).color(1)
-.modulateRotate(src(o1).rotate(-.003,.00004).modulate(osc(.2,.5,4))).shift(8).rotate(.003,[.00004, -.00004]).hue(5).modulateScrollX(osc(3,.5,3.))
-.modulateScale(src(o0),[.4,.9])
-
-
-//.mult(shape(3,.3,.2).scale(1.006))
-
-
-.out()
-`;
-
-// ✅ deixa escondido por padrão (segurança extra)
-if (hydraMini) hydraMini.hidden = true;
-
-// ✅ só preenche o editor se estiver vazio (pra não apagar o que você estiver editando)
-if (hydraCode && !hydraCode.value.trim()) hydraCode.value = DEFAULT_PATCH;
-
-function positionMiniNearButton() {
-  if (!openHydraMini || !hydraMini) return;
-
-  const r = openHydraMini.getBoundingClientRect();
-  const margin = 10;
-
-  // garante que já temos tamanho calculado
-  hydraMini.hidden = false;
-
-  const left = clamp(
-    r.left,
-    margin,
-    window.innerWidth - hydraMini.offsetWidth - margin
-  );
-
-  const top = clamp(
-    r.top - hydraMini.offsetHeight - 10,
-    margin,
-    window.innerHeight - hydraMini.offsetHeight - margin
-  );
-
-  hydraMini.style.left = `${left}px`;
-  hydraMini.style.top = `${top}px`;
-}
-
-function openHydraPanel(ev) {
-  ev?.preventDefault?.();
-  ev?.stopPropagation?.();
-
-  initHydraBackground();
-  if (!hydraMini) return;
-
-  // abre + posiciona
-  if (hydraMini.hidden) {
-    positionMiniNearButton();
-  } else {
-    hydraMini.hidden = true;
-  }
-}
-
-function closeHydraPanel(ev) {
-  ev?.preventDefault?.();
-  ev?.stopPropagation?.();
-  if (hydraMini) hydraMini.hidden = true;
-}
-
-openHydraMini?.addEventListener("click", openHydraPanel);
-closeHydraMini?.addEventListener("click", closeHydraPanel);
-
-// ✅ ESC fecha
-window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && hydraMini && !hydraMini.hidden) closeHydraPanel(e);
-});
-
-	  // =======================
-// Hydra Mini: DRAG + RESIZE (todos os lados)
-// =======================
-(function enableHydraMiniFloat(){
-  const panel = document.getElementById("hydraMini");
-  if (!panel) return;
-
-  const topbar = panel.querySelector(".hydra-mini__top");
-  if (!topbar) return;
-
-  // cria handles via JS (não precisa editar HTML)
-  const dirs = ["n","s","e","w","ne","nw","se","sw"];
-  for (const d of dirs){
-    const h = document.createElement("div");
-    h.className = `resize-handle resize-handle--${d}`;
-    h.dataset.dir = d;
-    panel.appendChild(h);
-  }
-
-  const safeMargin = () => ({
-    left: 8,
-    top: 8 + (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--safeTop")) || 0),
-    right: 8,
-    bottom: 8
-  });
-
-  function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
-
-  // --- DRAG ---
-  let drag = null;
-
-  topbar.addEventListener("pointerdown", (e) => {
-    if (panel.hidden) return;
-    // impede scroll/seleção no mobile
-    e.preventDefault();
-
-    const r = panel.getBoundingClientRect();
-    drag = { startX: e.clientX, startY: e.clientY, left: r.left, top: r.top };
-
-    topbar.setPointerCapture(e.pointerId);
-  });
-
-  topbar.addEventListener("pointermove", (e) => {
-    if (!drag) return;
-
-    const dx = e.clientX - drag.startX;
-    const dy = e.clientY - drag.startY;
-
-    const margin = 8;
-    const maxLeft = window.innerWidth - panel.offsetWidth - margin;
-    const maxTop  = window.innerHeight - panel.offsetHeight - margin;
-
-    const left = clamp(drag.left + dx, margin, maxLeft);
-    const top  = clamp(drag.top + dy, margin, maxTop);
-
-    panel.style.left = `${left}px`;
-    panel.style.top  = `${top}px`;
-  });
-
-  topbar.addEventListener("pointerup", () => { drag = null; });
-  topbar.addEventListener("pointercancel", () => { drag = null; });
-
-  // --- RESIZE (handles) ---
-  let resize = null;
-
-  panel.addEventListener("pointerdown", (e) => {
-    const handle = e.target.closest(".resize-handle");
-    if (!handle || panel.hidden) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    const r = panel.getBoundingClientRect();
-    resize = {
-      dir: handle.dataset.dir,
-      startX: e.clientX,
-      startY: e.clientY,
-      left: r.left,
-      top: r.top,
-      width: r.width,
-      height: r.height
-    };
-
-    panel.setPointerCapture(e.pointerId);
-  });
-
-  panel.addEventListener("pointermove", (e) => {
-    if (!resize) return;
-
-    const dx = e.clientX - resize.startX;
-    const dy = e.clientY - resize.startY;
-
-    const minW = 280;
-    const minH = 200;
-
-    let left = resize.left;
-    let top = resize.top;
-    let width = resize.width;
-    let height = resize.height;
-
-    const dir = resize.dir;
-
-    // horizontal
-    if (dir.includes("e")) width = resize.width + dx;
-    if (dir.includes("w")) { width = resize.width - dx; left = resize.left + dx; }
-
-    // vertical
-    if (dir.includes("s")) height = resize.height + dy;
-    if (dir.includes("n")) { height = resize.height - dy; top = resize.top + dy; }
-
-    // minima
-    width = Math.max(minW, width);
-    height = Math.max(minH, height);
-
-    // não deixa sair da tela
-    const margin = 8;
-    const maxLeft = window.innerWidth - width - margin;
-    const maxTop  = window.innerHeight - height - margin;
-
-    left = clamp(left, margin, maxLeft);
-    top  = clamp(top, margin, maxTop);
-
-    panel.style.left = `${left}px`;
-    panel.style.top  = `${top}px`;
-    panel.style.width = `${width}px`;
-    panel.style.height = `${height}px`;
-  });
-
-  panel.addEventListener("pointerup", () => { resize = null; });
-  panel.addEventListener("pointercancel", () => { resize = null; });
-})();
-
-	  
-
-runHydra?.addEventListener("click", (ev) => {
-  ev.preventDefault();
-  ev.stopPropagation();
-
-  initHydraBackground();
-
-  const code = (hydraCode?.value || "").trim();
-  if (!code) {
-    alert("O editor está vazio.");
-    return;
-  }
-
-  try {
-    (0, eval)(code);
-  } catch (e) {
-    console.error(e);
-    alert("Erro no código Hydra. (Veja o console.)");
-  }
-});
-
-// ✅ se a janela estiver aberta, reposiciona ao redimensionar
-window.addEventListener("resize", () => {
-  if (hydraMini && !hydraMini.hidden) positionMiniNearButton();
-});
-
-
-    
-    // abrir modal SEM depender de supabase
+    // abrir modal composer
     openComposer?.addEventListener("click", () => {
       if (composer?.showModal) composer.showModal();
       else composer?.setAttribute("open", "");
@@ -658,6 +635,7 @@ window.addEventListener("resize", () => {
         setStatus(statusEl, fileError);
         return;
       }
+
       if (!text && !file) {
         setStatus(statusEl, "Escreva um texto e/ou envie uma mídia ✨");
         return;
@@ -676,8 +654,9 @@ window.addEventListener("resize", () => {
         const mediaType = file?.type || null;
 
         await insertPost(text, mediaUrl, mediaType);
-        initHydraBackground();          // garante que o Hydra está vivo
-        applySeedToHydra(text, mediaType); // “plantar” mexe nos parâmetros
+
+        initHydraBackground();
+        applySeedToHydra(text, mediaType);
 
         if (textEl) textEl.value = "";
         if (mediaEl) mediaEl.value = "";
@@ -697,133 +676,5 @@ window.addEventListener("resize", () => {
     // render inicial
     renderGarden(garden, viewerEls);
   });
+
 })();
-
-// =====================================================
-// Hydra Mini: FLUTUANTE (drag) + RESIZE (todos os lados)
-// =====================================================
-(function enableHydraMiniFloat(){
-  const panel = document.getElementById("hydraMini");
-  if (!panel) return;
-
-  const topbar = panel.querySelector(".hydra-mini__top");
-  if (!topbar) return;
-
-  // cria handles de resize automaticamente (sem mexer no HTML)
-  const dirs = ["n","s","e","w","ne","nw","se","sw"];
-  for (const d of dirs){
-    const h = document.createElement("div");
-    h.className = `resize-handle resize-handle--${d}`;
-    h.dataset.dir = d;
-    panel.appendChild(h);
-  }
-
-  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-
-  // ---------- DRAG ----------
-  let drag = null;
-
- topbar.addEventListener("pointerdown", (e) => {
-  if (panel.hidden) return;
-
-  // ✅ NÃO iniciar drag se clicar em algo interativo (ex: botão ✕)
-  if (e.target.closest("button, a, input, textarea, select, label")) return;
-
-  e.preventDefault();
-
-  const r = panel.getBoundingClientRect();
-  drag = { startX: e.clientX, startY: e.clientY, left: r.left, top: r.top };
-
-  topbar.setPointerCapture(e.pointerId);
-});
-
-  topbar.addEventListener("pointermove", (e) => {
-    if (!drag) return;
-
-    const dx = e.clientX - drag.startX;
-    const dy = e.clientY - drag.startY;
-
-    const margin = 8;
-    const maxLeft = window.innerWidth - panel.offsetWidth - margin;
-    const maxTop  = window.innerHeight - panel.offsetHeight - margin;
-
-    panel.style.left = clamp(drag.left + dx, margin, maxLeft) + "px";
-    panel.style.top  = clamp(drag.top  + dy, margin, maxTop)  + "px";
-  });
-
-  topbar.addEventListener("pointerup", () => { drag = null; });
-  topbar.addEventListener("pointercancel", () => { drag = null; });
-
-  // ---------- RESIZE ----------
-  let resize = null;
-
-  panel.addEventListener("pointerdown", (e) => {
-    const handle = e.target.closest(".resize-handle");
-    if (!handle || panel.hidden) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    const r = panel.getBoundingClientRect();
-    resize = {
-      dir: handle.dataset.dir,
-      startX: e.clientX,
-      startY: e.clientY,
-      left: r.left,
-      top: r.top,
-      width: r.width,
-      height: r.height
-    };
-
-    panel.setPointerCapture(e.pointerId);
-  });
-
-  panel.addEventListener("pointermove", (e) => {
-    if (!resize) return;
-
-    const dx = e.clientX - resize.startX;
-    const dy = e.clientY - resize.startY;
-
-    // mínimos (ajuste se quiser)
-    const minW = 300;
-    const minH = 220;
-
-    let left = resize.left;
-    let top = resize.top;
-    let width = resize.width;
-    let height = resize.height;
-
-    const dir = resize.dir;
-
-    if (dir.includes("e")) width = resize.width + dx;
-    if (dir.includes("w")) { width = resize.width - dx; left = resize.left + dx; }
-
-    if (dir.includes("s")) height = resize.height + dy;
-    if (dir.includes("n")) { height = resize.height - dy; top = resize.top + dy; }
-
-    width = Math.max(minW, width);
-    height = Math.max(minH, height);
-
-    // mantém dentro da tela
-    const margin = 8;
-    const maxLeft = window.innerWidth - width - margin;
-    const maxTop  = window.innerHeight - height - margin;
-
-    left = clamp(left, margin, maxLeft);
-    top  = clamp(top, margin, maxTop);
-
-    panel.style.left = `${left}px`;
-    panel.style.top  = `${top}px`;
-    panel.style.width = `${width}px`;
-    panel.style.height = `${height}px`;
-  });
-
-  panel.addEventListener("pointerup", () => { resize = null; });
-  panel.addEventListener("pointercancel", () => { resize = null; });
-})();
-
-
-
-
-
-
