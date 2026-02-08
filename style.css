@@ -1022,3 +1022,67 @@ input[type="file"]{
     overflow: hidden;
   }
 }
+
+/* =========================================================
+   AERO BUTTONS (substitui orgânicos) — PATCH FINAL
+   Cole no FINAL do style.css
+   ========================================================= */
+
+/* remove o "orgânico" só dos botões principais */
+.fab{
+  /* mantém posição (desktop) / mobile já está estabilizado no seu hotfix */
+  border: 1px solid rgba(255,255,255,0.18) !important;
+  background: rgba(255,255,255,0.10) !important;
+  backdrop-filter: blur(14px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(160%) !important;
+
+  color: rgba(255,255,255,0.92) !important;
+  text-shadow: none !important;
+
+  border-radius: 14px !important; /* aero retinho (não “amoeba”) */
+  font-weight: 700 !important;
+  letter-spacing: 0.2px !important;
+
+  box-shadow:
+    0 14px 40px rgba(0,0,0,0.28),
+    inset 0 1px 0 rgba(255,255,255,0.14) !important;
+}
+
+/* desliga completamente as manchas orgânicas */
+.fab::before,
+.fab::after{
+  content: none !important;
+  display: none !important;
+}
+
+/* hover suave (aero) */
+.fab:hover{
+  background: rgba(255,255,255,0.14) !important;
+  border-color: rgba(255,255,255,0.24) !important;
+}
+
+/* pressed */
+.fab:active{
+  transform: translateX(-50%) translateY(1px) !important; /* mantém seu desktop */
+}
+
+/* botão da direita (Crie): mesma linguagem, só menor */
+.fab--right{
+  min-width: 140px !important;
+}
+
+/* ===========================
+   MOBILE: tipografia + tamanho proporcionais
+   (mantém estabilização que já deu certo)
+   =========================== */
+@media (max-width: 640px){
+  .fab{
+    height: 48px !important;
+    min-height: 48px !important;
+    padding: 0 12px !important;
+    font-size: 12.5px !important;
+    border-radius: 12px !important;
+  }
+}
+
+
