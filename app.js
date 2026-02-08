@@ -362,7 +362,7 @@ el.addEventListener("mouseleave", () => { hoverBoost = 0; });
 
     const viewerEls = { viewer, viewerImg, viewerText, viewerMeta };
 
-    // Hydra: inicia (se a lib já carregou)
+   // Hydra: inicia (se a lib já carregou)
 initHydraBackground();
 
 // Mini editor popup
@@ -402,32 +402,68 @@ src(o0).modulateHue(src(o0).scale(1.2))
 //.mult(shape(3,.3,.2).scale(1.006))
 
 
-.out(
+.out()
 `;
 
-if (hydraCode) hydraCode.value = DEFAULT_PATCH;
+// ✅ deixa escondido por padrão (segurança extra)
+if (hydraMini) hydraMini.hidden = true;
 
-function positionMiniNearButton(){
+// ✅ só preenche o editor se estiver vazio (pra não apagar o que você estiver editando)
+if (hydraCode && !hydraCode.value.trim()) hydraCode.value = DEFAULT_PATCH;
+
+function positionMiniNearButton() {
   if (!openHydraMini || !hydraMini) return;
+
   const r = openHydraMini.getBoundingClientRect();
   const margin = 10;
 
+  // garante que já temos tamanho calculado
   hydraMini.hidden = false;
 
-  const left = clamp(r.left, margin, window.innerWidth - hydraMini.offsetWidth - margin);
-  const top  = clamp(r.top - hydraMini.offsetHeight - 10, margin, window.innerHeight - hydraMini.offsetHeight - margin);
+  const left = clamp(
+    r.left,
+    margin,
+    window.innerWidth - hydraMini.offsetWidth - margin
+  );
+
+  const top = clamp(
+    r.top - hydraMini.offsetHeight - 10,
+    margin,
+    window.innerHeight - hydraMini.offsetHeight - margin
+  );
 
   hydraMini.style.left = `${left}px`;
-  hydraMini.style.top  = `${top}px`;
+  hydraMini.style.top = `${top}px`;
 }
 
-openHydraMini?.addEventListener("click", () => {
-  initHydraBackground();
-  if (hydraMini?.hidden) positionMiniNearButton();
-  else hydraMini.hidden = true;
-});
+function openHydraPanel(ev) {
+  ev?.preventDefault?.();
+  ev?.stopPropagation?.();
 
-closeHydraMini?.addEventListener("click", () => { if (hydraMini) hydraMini.hidden = true; });
+  initHydraBackground();
+  if (!hydraMini) return;
+
+  // abre + posiciona
+  if (hydraMini.hidden) {
+    positionMiniNearButton();
+  } else {
+    hydraMini.hidden = true;
+  }
+}
+
+function closeHydraPanel(ev) {
+  ev?.preventDefault?.();
+  ev?.stopPropagation?.();
+  if (hydraMini) hydraMini.hidden = true;
+}
+
+openHydraMini?.addEventListener("click", openHydraPanel);
+closeHydraMini?.addEventListener("click", closeHydraPanel);
+
+// ✅ ESC fecha
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && hydraMini && !hydraMini.hidden) closeHydraPanel(e);
+});
 
 runHydra?.addEventListener("click", (ev) => {
   ev.preventDefault();
@@ -436,14 +472,12 @@ runHydra?.addEventListener("click", (ev) => {
   initHydraBackground();
 
   const code = (hydraCode?.value || "").trim();
-
   if (!code) {
     alert("O editor está vazio.");
     return;
   }
 
   try {
-    // executa no contexto global do Hydra
     (0, eval)(code);
   } catch (e) {
     console.error(e);
@@ -451,17 +485,11 @@ runHydra?.addEventListener("click", (ev) => {
   }
 });
 
-	  closeHydraMini?.addEventListener("click", (ev) => {
-  ev.preventDefault();
-  ev.stopPropagation();
-  if (hydraMini) hydraMini.hidden = true;
-});
-
-
-
+// ✅ se a janela estiver aberta, reposiciona ao redimensionar
 window.addEventListener("resize", () => {
   if (hydraMini && !hydraMini.hidden) positionMiniNearButton();
 });
+
 
     
     // abrir modal SEM depender de supabase
