@@ -308,6 +308,19 @@ body{
     0 18px 60px rgba(0,0,0,0.32),
     inset 0 1px 0 rgba(255,255,255,0.20);
 }
+.fab--icon{
+  padding: 12px 14px;
+  min-width: 44px;
+  display:grid;
+  place-items:center;
+}
+.fabIcon{
+  width: 18px;
+  height: 18px;
+  opacity: 0.95;
+  filter: drop-shadow(0 8px 14px rgba(0,0,0,0.28));
+}
+
 .fab:hover{
   border-color: rgba(255,255,255,0.34);
   background: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.08));
