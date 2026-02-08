@@ -534,6 +534,82 @@ input[type="file"]{
   letter-spacing: 0.2px;
 }
 
+/* Hydra fullscreen background */
+.hydra-canvas{
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;          /* fundo */
+  pointer-events: none; /* não atrapalha clicar nas seeds */
+}
+
+/* Garden/Seeds acima do Hydra (você já usa z-index:1 no .garden) */
+.garden{ z-index: 1; } /* reforço */
+
+/* Botão "Crie" com a mesma mancha do .fab, só que ancorado à direita */
+.fab--right{
+  left: auto;
+  right: 18px;
+  transform: none;
+  min-width: 180px;
+}
+
+/* Mini editor (<= 1/4 da tela) aparecendo perto do botão */
+.hydra-mini{
+  position: fixed;
+  z-index: 40;
+
+  width: min(460px, 44vw);
+  height: min(320px, 24vh);  /* ~ 1/4 */
+  max-width: 44vw;
+  max-height: 24vh;
+
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border-radius: 16px;
+  padding: 10px;
+
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 8px;
+
+  box-shadow: 0 18px 60px rgba(0,0,0,.35);
+}
+
+.hydra-mini__top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  font-size: 14px;
+  opacity: .92;
+}
+
+.hydra-mini__x{
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+#hydraCode{
+  width: 100%;
+  height: 100%;
+  resize: none;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.40);
+  color: rgba(255,255,255,0.92);
+  padding: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+
 
 
 
