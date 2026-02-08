@@ -1219,3 +1219,41 @@ a.show()
   });
 
 })();
+
+// =========================
+// Print (salvar PNG do Hydra) — modo robusto sem prompt
+// =========================
+(function setupPrintShot(){
+  const btn = document.getElementById("printShot");
+  const hydraCanvas = document.getElementById("hydra-canvas");
+  if (!btn || !hydraCanvas) return;
+
+  function downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1200);
+  }
+
+  btn.addEventListener("click", () => {
+    // tenta exportar o canvas do Hydra
+    try{
+      hydraCanvas.toBlob((blob) => {
+        if (!blob) {
+          alert("Não consegui salvar a imagem agora. Dica: evite presets com imagens externas (CORS).");
+          return;
+        }
+        const stamp = new Date().toISOString().replace(/[:.]/g,"-");
+        downloadBlob(blob, `ceu-poetico-${stamp}.png`);
+      }, "image/png", 0.92);
+    }catch(err){
+      console.error(err);
+      alert("Erro ao salvar. Provável CORS em alguma textura/mídia do Hydra.");
+    }
+  });
+})();
+
