@@ -46,16 +46,32 @@
     A: {
       name: "A",
       renderBuf: "o0",
-      code: `// A — PARA VOCÊ, O QUE É SER POTIGUAR?
+      code: `// PARA VOCÊ, O QUE É SER POTIGUAR?
+
+
+
+await loadScript("https://cdn.jsdelivr.net/gh/geikha/hyper-hydra@latest/hydra-text.js")
+
+await loadScript("https://hyper-hydra.glitch.me/hydra-text.js")
+
+hydraText.font = "serif"
+hydraText.lineWidth = "2%"
+str = " o que é ser potiguar? "
 
 s0.initImage("https://image2url.com/r2/default/gifs/1770579272000-56a42137-bb31-4f81-a13e-1a2ab3e05e8b.gif")
 s1.initCam()
 
 src(s0)
   .mult(src(s1).add(src(s1).scale(1.006)))
+
   .modulate(s0, .4)
   .blend(s0, () => a.fft[1])
+.blend(src(o0).scale(1.02).colorama(.02))
+	.layer(text(str))
+	.diff(strokeText(str).modulateScale(noise(.51,.51), .4))
   .out(o0)
+
+
 
 a.show()
 `
@@ -85,7 +101,7 @@ a.show()
     C: {
       name: "C",
       renderBuf: "o0",
-      code: `// C — olá, mundo
+      code: `// olá, mundo
 speed=.3
 
 osc(.33,3.3,3.3)
@@ -126,7 +142,7 @@ src(o2)
     D: {
       name: "D",
       renderBuf: "o2",
-      code: `// D — espelho
+      code: `// espelho
 
 s1.initCam()
 
