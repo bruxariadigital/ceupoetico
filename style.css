@@ -577,6 +577,16 @@ input[type="file"]{
   gap: 8px;
 
   box-shadow: 0 18px 60px rgba(0,0,0,.35);
+
+    /* deixa redimensionar */
+  resize: both;
+  overflow: auto;
+
+  /* tamanho inicial maior (bem mais confortável) */
+  width: min(560px, 52vw);
+  height: min(420px, 38vh);
+  max-width: 70vw;
+  max-height: 60vh;
 }
 
 .hydra-mini__top{
@@ -608,6 +618,28 @@ input[type="file"]{
   font-size: 12px;
   line-height: 1.35;
 }
+
+.hydra-mini__actions{
+  display:flex;
+  justify-content:flex-end;
+  gap: 8px;
+}
+
+.btn--mini{
+  padding: 8px 12px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.08);
+  color: rgba(255,255,255,.92);
+  cursor: pointer;
+}
+
+.btn--mini:hover{
+  background: rgba(255,255,255,.12);
+}
+
+
 
 
 
