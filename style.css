@@ -907,3 +907,118 @@ input[type="file"]{
 .resize-handle--se{ right:-8px; bottom:-8px; width:18px; height:18px; cursor: nwse-resize; }
 .resize-handle--sw{ left:-8px; bottom:-8px; width:18px; height:18px; cursor: nesw-resize; }
 
+/* =========================================================
+   MOBILE HOTFIX — trava viewport + botões responsivos + sem overflow
+   (COLE NO FINAL DO style.css)
+   ========================================================= */
+
+@media (max-width: 640px){
+
+  /* trava a página no viewport (sem scroll e sem faixas extras) */
+  html, body{
+    width: 100%;
+    height: 100%;
+    overflow: hidden !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+  }
+
+  /* garante que o "palco" é a tela inteira, sempre */
+  .stage{
+    position: fixed;
+    inset: 0;
+    width: 100dvw;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* canvas Hydra sempre cobrindo a tela inteira */
+  .hydra-canvas{
+    position: fixed;
+    inset: 0;
+    width: 100dvw;
+    height: 100dvh;
+  }
+
+  /* área clicável das seeds não pode "crescer" pra fora */
+  .garden{
+    position: absolute;
+    left: 0; right: 0;
+    top: calc(82px + env(safe-area-inset-top));
+    bottom: 0;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  /* ===========================
+     BOTÕES (FABBAR)
+     =========================== */
+
+  .fabbar{
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    z-index: 20;
+
+    width: calc(100dvw - 18px);
+    max-width: 560px;
+
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0;
+    pointer-events: auto;
+  }
+
+  /* No mobile, os botões deixam de ser "fixed soltos" e viram itens da barra */
+  .fab{
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+
+    flex: 1 1 0;
+    min-width: 0;
+
+    height: 52px;
+    min-height: 52px;
+
+    padding: 0 14px;
+
+    font-size: 12.5px;        /* tipografia menor */
+    letter-spacing: 0.25px;   /* mais delicado */
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    /* impede a mancha de “estourar” o viewport */
+    contain: paint;
+  }
+
+  /* botão "Crie" um pouco menor */
+  #openHydraMini{
+    flex: 0 0 36%;
+  }
+
+  /* manchas menores (pra não vazar na lateral) */
+  .fab::before{ inset: -12px -12px; }
+  .fab::after { inset: -8px  -9px;  }
+
+  /* ===========================
+     MINI EDITOR
+     =========================== */
+
+  .hydra-mini{
+    /* o JS vai mover — aqui só garantimos que ele nunca nasce “fora” */
+    max-width: calc(100dvw - 16px);
+    max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow: hidden;
+  }
+}
