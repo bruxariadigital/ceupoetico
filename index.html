@@ -29,26 +29,24 @@
     <button id="openComposer" class="fab" type="button" aria-haspopup="dialog">
       Plantar uma semente
     </button>
-  </main>
+ 
+    <button id="openHydraMini" class="fab fab--right" type="button">
+    Crie
+    </button>
 
-  <button id="openHydraMini" class="fab fab--right" type="button">
-  Crie
-</button>
+    <div id="hydraMini" class="hydra-mini" hidden> <!-- add hydra -->
+    <div class="hydra-mini__top">
+       <strong>Hydra Sintetizador de Vídeo online</strong>
+       <button id="closeHydraMini" type="button" class="hydra-mini__x" aria-label="Fechar">✕</button>
+    </div>
 
-<div id="hydraMini" class="hydra-mini" hidden> <!-- add hydra -->
-  <div class="hydra-mini__top">
-    <strong>Hydra Sintetizador de Vídeo online</strong>
-    <button id="closeHydraMini" class="hydra-mini__x" type="button">✕</button>
+     <textarea id="hydraCode" spellcheck="false"></textarea>
 
+    <div class="hydra-mini__actions">
+      <button id="runHydra" class="btn btn--mini" type="button">clique-me para rodar o código</button>
+    </div>
   </div>
-
-  <textarea id="hydraCode" spellcheck="false"></textarea>
-
-  <div class="hydra-mini__actions">
-    <button id="runHydra" class="btn" type="button">clique-me para rodar o código</button>
-  </div>
-</div>
-
+ </main>
 
   <dialog id="composer" class="dialog" aria-label="Enviar para o mural">
     <form id="muralForm" class="card" method="dialog">
