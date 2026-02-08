@@ -310,17 +310,144 @@ a.show()
     window.addEventListener("orientationchange", () => setTimeout(fitHydraCanvasToScreen, 60));
   }
 
-  function hushIfPossible() {
+  
+// =====================================================
+// Hydra helpers:
+// 1) Polyfill de hydra-text (text / strokeText / hydraText)
+// 2) initImage "CORS-safe" (para permitir print/export do canvas)
+// =====================================================
+let __ceuTextReady = false;
+
+function ensureHydraTextPolyfill(){
+  // Se algum script externo já definiu hydraText/text/strokeText, não mexe.
+  if (globalThis.hydraText && typeof globalThis.text === "function" && typeof globalThis.strokeText === "function") {
+    __ceuTextReady = true;
+    return;
+  }
+  if (__ceuTextReady) return;
+
+  const hydraCanvas = document.getElementById("hydra-canvas");
+  const W = () => (hydraCanvas?.width ?? Math.floor(window.innerWidth * (window.devicePixelRatio || 1)));
+  const H = () => (hydraCanvas?.height ?? Math.floor(window.innerHeight * (window.devicePixelRatio || 1)));
+
+  const makeCanvas = () => {
+    const c = document.createElement("canvas");
+    c.width = W();
+    c.height = H();
+    return c;
+  };
+
+  const fillCanvas = makeCanvas();
+  const strokeCanvas = makeCanvas();
+
+  const ctxFill = fillCanvas.getContext("2d");
+  const ctxStroke = strokeCanvas.getContext("2d");
+
+  globalThis.hydraText = globalThis.hydraText || { font: "serif", lineWidth: "2%" };
+
+  const parseLineWidthPx = () => {
+    const v = String(globalThis.hydraText?.lineWidth ?? "2%").trim();
+    const w = W(), h = H();
+    if (v.endsWith("%")) {
+      const p = parseFloat(v.replace("%",""));
+      return Math.max(1, (Math.min(w, h) * (isFinite(p) ? p : 2)) / 100);
+    }
+    const n = parseFloat(v);
+    return Math.max(1, isFinite(n) ? n : 6);
+  };
+
+  const draw = (str) => {
+    const s = String(str ?? "");
+    // sync sizes caso Hydra mude resolução
+    const w = W(); const h = H();
+    if (fillCanvas.width !== w || fillCanvas.height !== h){
+      fillCanvas.width = w; fillCanvas.height = h;
+      strokeCanvas.width = w; strokeCanvas.height = h;
+    }
+
+    const font = String(globalThis.hydraText?.font ?? "serif");
+    const lw = parseLineWidthPx();
+
+    // Fill
+    ctxFill.clearRect(0,0,w,h);
+    ctxFill.fillStyle = "rgba(255,255,255,1)";
+    ctxFill.textAlign = "center";
+    ctxFill.textBaseline = "middle";
+    ctxFill.font = `bold ${Math.max(22, Math.floor(h*0.07))}px ${font}`;
+    ctxFill.fillText(s, w/2, h/2);
+
+    // Stroke
+    ctxStroke.clearRect(0,0,w,h);
+    ctxStroke.strokeStyle = "rgba(255,255,255,1)";
+    ctxStroke.lineWidth = lw;
+    ctxStroke.lineJoin = "round";
+    ctxStroke.textAlign = "center";
+    ctxStroke.textBaseline = "middle";
+    ctxStroke.font = ctxFill.font;
+    ctxStroke.strokeText(s, w/2, h/2);
+  };
+
+  // Registra as fontes (s2/s3) se existirem
+  try {
+    if (globalThis.s2?.init) globalThis.s2.init({ src: fillCanvas });
+    if (globalThis.s3?.init) globalThis.s3.init({ src: strokeCanvas });
+  } catch {}
+
+  globalThis.text = (str) => {
+    draw(str);
+    return src(globalThis.s2 || fillCanvas);
+  };
+  globalThis.strokeText = (str) => {
+    draw(str);
+    return src(globalThis.s3 || strokeCanvas);
+  };
+
+  __ceuTextReady = true;
+}
+
+let __ceuInitImagePatched = false;
+function patchInitImageCorsSafe(){
+  if (__ceuInitImagePatched) return;
+  const sources = [globalThis.s0, globalThis.s1, globalThis.s2, globalThis.s3].filter(Boolean);
+
+  sources.forEach((s) => {
+    if (!s || typeof s.initImage !== "function") return;
+    const original = s.initImage.bind(s);
+
+    s.initImage = (url) => {
+      try {
+        const u = String(url || "");
+        if (!u) return original(url);
+        if (/^data:|^blob:/.test(u)) return original(url);
+
+        fetch(u, { mode: "cors", credentials: "omit", cache: "force-cache" })
+          .then((r) => r.blob())
+          .then((blob) => {
+            const obj = URL.createObjectURL(blob);
+            original(obj);
+            setTimeout(() => URL.revokeObjectURL(obj), 60_000);
+          })
+          .catch(() => original(url));
+      } catch {
+        original(url);
+      }
+    };
+  });
+
+  __ceuInitImagePatched = true;
+}
+
+function hushIfPossible() {
     try { if (typeof window.hush === "function") window.hush(); } catch {}
   }
 
   async function safeEvalHydra(code){
-    const body = "\"use strict\";
-" + String(code || "") + "
-";
-    const fn = new AsyncFunction("loadScript", body);
-    return await fn(globalThis.loadScript);
-  }
+  const body = `"use strict";
+${String(code || "")}
+`;
+  const fn = new AsyncFunction("loadScript", body);
+  return await fn(globalThis.loadScript);
+}
 
   function applyPresetFxToDisplay(presetId, state) {
     const meta = PRESET_DEFAULTS[presetId] || PRESET_DEFAULTS.A;
@@ -349,6 +476,8 @@ a.show()
 
   async function runActivePreset(state){
     initHydraBackground();
+    ensureHydraTextPolyfill();
+    patchInitImageCorsSafe();
     hushIfPossible();
 
     const presetId = PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A";
@@ -1031,7 +1160,97 @@ a.show()
     });
   }
 
-  // =====================================================
+  
+// =====================================================
+// PRINT / “foto” da tela (Hydra + UI)
+// =====================================================
+function filenameNow(){
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `ceu-poetico-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.png`;
+}
+
+async function downloadBlob(blob, name){
+  try{
+    const file = new File([blob], name, { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
+      await navigator.share({ files: [file], title: "Céu Poético" });
+      return;
+    }
+  }catch{}
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1200);
+}
+
+async function takeScreenshot(){
+  const name = filenameNow();
+  const hydraCanvas = document.getElementById("hydra-canvas");
+
+  // captura Hydra (pode falhar se estiver tainted por CORS)
+  let hydraImg = null;
+  try{
+    if (hydraCanvas) {
+      const url = hydraCanvas.toDataURL("image/png");
+      hydraImg = await new Promise((res, rej) => {
+        const im = new Image();
+        im.onload = () => res(im);
+        im.onerror = rej;
+        im.src = url;
+      });
+    }
+  }catch(e){
+    console.warn("Hydra toDataURL falhou (provável CORS).", e);
+  }
+
+  if (typeof window.html2canvas !== "function"){
+    alert("Biblioteca de print não carregou (html2canvas). Confira o <script> no index.html.");
+    return false;
+  }
+
+  const prevVis = hydraCanvas?.style?.visibility;
+  if (hydraCanvas) hydraCanvas.style.visibility = "hidden";
+
+  let uiCanvas;
+  try{
+    uiCanvas = await window.html2canvas(document.body, {
+      backgroundColor: null,
+      useCORS: true,
+      logging: false,
+      scale: Math.min(window.devicePixelRatio || 1, 2),
+      foreignObjectRendering: true,
+    });
+  }finally{
+    if (hydraCanvas) hydraCanvas.style.visibility = prevVis || "";
+  }
+
+  const out = document.createElement("canvas");
+  out.width = uiCanvas.width;
+  out.height = uiCanvas.height;
+  const ctx = out.getContext("2d");
+
+  if (hydraImg){
+    ctx.drawImage(hydraImg, 0, 0, out.width, out.height);
+  }
+  ctx.drawImage(uiCanvas, 0, 0);
+
+  const blob = await new Promise((res) => out.toBlob(res, "image/png", 0.95));
+  if (!blob){
+    alert("Não consegui gerar o print neste navegador.");
+    return false;
+  }
+
+  await downloadBlob(blob, name);
+  return true;
+}
+
+// =====================================================
   // START
   // =====================================================
   window.addEventListener("DOMContentLoaded", () => {
@@ -1091,6 +1310,13 @@ a.show()
 
     // Preset dock (A/B/C/D)
     setupPresetDock(state, miniApi);
+
+    // Print (foto)
+    printShot?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      await takeScreenshot();
+    });
 
     // abrir composer
     openComposer?.addEventListener("click", () => {
