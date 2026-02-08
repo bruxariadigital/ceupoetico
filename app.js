@@ -429,16 +429,35 @@ openHydraMini?.addEventListener("click", () => {
 
 closeHydraMini?.addEventListener("click", () => { if (hydraMini) hydraMini.hidden = true; });
 
-runHydra?.addEventListener("click", () => {
+runHydra?.addEventListener("click", (ev) => {
+  ev.preventDefault();
+  ev.stopPropagation();
+
   initHydraBackground();
+
+  const code = (hydraCode?.value || "").trim();
+
+  if (!code) {
+    alert("O editor está vazio.");
+    return;
+  }
+
   try {
-    // roda o patch no contexto global do Hydra (makeGlobal: true)
-    (0, eval)(hydraCode?.value || "");
+    // executa no contexto global do Hydra
+    (0, eval)(code);
   } catch (e) {
     console.error(e);
-    alert("Erro no código Hydra. Olha o console.");
+    alert("Erro no código Hydra. (Veja o console.)");
   }
 });
+
+	  closeHydraMini?.addEventListener("click", (ev) => {
+  ev.preventDefault();
+  ev.stopPropagation();
+  if (hydraMini) hydraMini.hidden = true;
+});
+
+
 
 window.addEventListener("resize", () => {
   if (hydraMini && !hydraMini.hidden) positionMiniNearButton();
