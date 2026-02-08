@@ -485,42 +485,70 @@ input[type="file"]{
 .resize-handle--se{ right:-8px; bottom:-8px; width:18px; height:18px; cursor: nwse-resize; }
 .resize-handle--sw{ left:-8px; bottom:-8px; width:18px; height:18px; cursor: nesw-resize; }
 
-/* Presets (triângulos) */
+/* =========================
+   PRESETS (Triângulos) — mais visíveis + ativo destacado
+   (Agora na esquerda, centralizado verticalmente)
+   ========================= */
+
 .presetDock{
   position: fixed;
-  left: 16px;
+  left: 14px;
+  right: auto;
   top: 50%;
   transform: translateY(-50%);
   z-index: 18;
   display: grid;
-  gap: 10px;
+  gap: 12px;
   pointer-events: auto;
 }
 
-
+/* “vidro” mais presente + contorno forte */
 .presetTri{
-  width: 42px;
-  height: 42px;
-  background: rgba(255,255,255,0.10);
-  border: 1px solid rgba(255,255,255,0.18);
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
-  clip-path: polygon(50% 8%, 92% 88%, 8% 88%);
+  width: 46px;
+  height: 46px;
   cursor: pointer;
-  box-shadow: 0 14px 40px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.10);
-  transition: transform .15s ease, background .15s ease, border-color .15s ease;
+  border: 1px solid rgba(255,255,255,0.34);
+  background: rgba(255,255,255,0.14);
+  backdrop-filter: blur(14px) saturate(170%);
+  -webkit-backdrop-filter: blur(14px) saturate(170%);
+
+  clip-path: polygon(50% 8%, 92% 88%, 8% 88%);
+
+  /* brilho “aero” pra não sumir */
+  box-shadow:
+    0 18px 55px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.32),
+    0 0 0 1px rgba(255,255,255,0.10);
+  transition: transform .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease;
 }
 
 .presetTri:hover{
-  background: rgba(255,255,255,0.14);
-  border-color: rgba(255,255,255,0.26);
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.46);
   transform: translateY(-1px);
+  box-shadow:
+    0 20px 70px rgba(0,0,0,0.42),
+    inset 0 1px 0 rgba(255,255,255,0.40),
+    0 0 0 1px rgba(255,255,255,0.14);
 }
 
+/* ativo: “anel” + glow suave */
 .presetTri.is-active{
-  background: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.34);
+  background: rgba(255,255,255,0.22);
+  border-color: rgba(255,255,255,0.62);
+  box-shadow:
+    0 22px 80px rgba(0,0,0,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.48),
+    0 0 0 2px rgba(255,255,255,0.18),
+    0 0 28px rgba(255,255,255,0.22);
 }
+
+/* mobile: um pouco menor pra não ocupar demais */
+@media (max-width: 640px){
+  .presetDock{ left: 10px; gap: 10px; }
+  .presetTri{ width: 42px; height: 42px; }
+}
+
 
 /* reset sutil (link) */
 .resetLink{
@@ -534,3 +562,5 @@ input[type="file"]{
   color: rgba(255,255,255,0.88);
   text-decoration: underline;
 }
+
+
