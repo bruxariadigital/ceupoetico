@@ -246,6 +246,29 @@ a.show()
     return window.matchMedia && window.matchMedia("(hover:hover) and (pointer:fine)").matches;
   }
 
+
+// =====================================================
+// SCRIPT LOADER (para presets com await loadScript)
+// =====================================================
+// Permite: await loadScript("https://.../hydra-text.js")
+// Obs: se o script já existe, resolve imediatamente.
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    try {
+      const existing = Array.from(document.scripts).find((s) => s.src === src);
+      if (existing) return resolve();
+      const s = document.createElement("script");
+      s.src = src;
+      s.async = true;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error("Falha ao carregar script: " + src));
+      document.head.appendChild(s);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
   // =====================================================
   // HYDRA (real) + DPR fit (corrige pixelado)
   // =====================================================
@@ -273,6 +296,9 @@ a.show()
     } catch {}
   }
 
+  // expõe no escopo global para uso dentro do eval
+  globalThis.loadScript = globalThis.loadScript || loadScript;
+
   function initHydraBackground() {
     if (hydraReady) return;
     if (typeof window.Hydra === "undefined") return;
@@ -281,7 +307,7 @@ a.show()
     if (!canvas) return;
 
     // eslint-disable-next-line no-undef
-    hydraInstance = new Hydra({ canvas, detectAudio: true, makeGlobal: true });
+    hydraInstance = new Hydra({ canvas, detectAudio: true, makeGlobal: true, preserveDrawingBuffer: true });
     hydraReady = true;
 
     fitHydraCanvasToScreen();
@@ -294,7 +320,18 @@ a.show()
   }
 
   function safeEvalHydra(code) {
-    (0, eval)(code);
+    // Suporta presets com "await loadScript(...)".
+    // Se detectar "await", executa dentro de uma IIFE async e retorna a Promise.
+    const hasAwait = /await/.test(code);
+    if (hasAwait) {
+      const wrapped = `(async()=>{
+${code}
+})()`;
+      // eslint-disable-next-line no-eval
+      return (0, eval)(wrapped);
+    }
+    // eslint-disable-next-line no-eval
+    return (0, eval)(code);
   }
 
   function applyPresetFxToDisplay(presetId, state) {
@@ -322,7 +359,7 @@ a.show()
     }
   }
 
-  function runActivePreset(state) {
+  async function runActivePreset(state) {
     initHydraBackground();
     hushIfPossible();
 
@@ -331,7 +368,9 @@ a.show()
     if (!code) return;
 
     try {
-      safeEvalHydra(code);
+      const r = safeEvalHydra(code);
+      // se o preset usar await, safeEvalHydra retorna Promise
+      if (r && typeof r.then === "function") await r;
     } catch (e) {
       console.error(e);
       alert("Erro no código Hydra do preset ativo. Veja o console.");
@@ -801,7 +840,7 @@ a.show()
       state.presets[id].code = codeEl.value;
       saveState(state);
 
-      runActivePreset(state);
+      void runActivePreset(state);
     });
 
     resetLink?.addEventListener("click", (ev) => {
@@ -817,7 +856,7 @@ a.show()
       saveState(state);
 
       syncEditorFromState();
-      runActivePreset(state);
+      void runActivePreset(state);
     });
 
     syncEditorFromState();
@@ -958,59 +997,10 @@ a.show()
         ev.preventDefault();
         ev.stopPropagation();
 
-        const id = String(btn.getAttribute("data-preset") || "").toUpperCase();
-        if (!PRESET_IDS.includes(id)) return;
-
-        state.activePreset = id;
-        saveState(state);
-
-        miniApi?.syncEditorFromState?.();
-        runActivePreset(state);
-        setActiveUI();
-      });
-    });
-
-    setActiveUI();
-  }
-
-  // =====================================================
-  // SOBRE (popup)
-  // =====================================================
-  function setupAboutPopup() {
-    const open = document.getElementById("openAbout");
-    const dlg = document.getElementById("about");
-    const close = document.getElementById("closeAbout");
-    if (!open || !dlg) return;
-
-    open.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      dlg?.showModal?.();
-    });
-
-    close?.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      closeDialogSafe(dlg);
-    });
-
-    // fecha clicando fora do card
-    dlg?.addEventListener("click", (e) => {
-      const card = dlg.querySelector(".card");
-      if (!card) return;
-      const r = card.getBoundingClientRect();
-      const inside =
-        e.clientX >= r.left && e.clientX <= r.right &&
-        e.clientY >= r.top && e.clientY <= r.bottom;
-      if (!inside) closeDialogSafe(dlg);
-    });
-  }
-
-  
-  // =====================================================
-  // PRINT / “foto” da tela
-  // - usa html2canvas (CDN) quando disponível
-  // - fallback: exporta só o canvas do Hydra
+        const id = String(// =====================================================
+  // PRINT / “foto” da tela (robusto)
+  // - compõe Hydra + UI em um canvas
+  // - evita html2canvas (WebGL + clip-path quebram)
   // =====================================================
   function filenameNow() {
     const d = new Date();
@@ -1018,16 +1008,7 @@ a.show()
     return `ceu-poetico-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.png`;
   }
 
-  async function downloadBlob(blob, name) {
-    // tenta share no mobile (quando possível)
-    try {
-      const file = new File([blob], name, { type: "image/png" });
-      if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
-        await navigator.share({ files: [file], title: "Céu Poético" });
-        return;
-      }
-    } catch {}
-
+  function downloadBlob(blob, name) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -1036,6 +1017,165 @@ a.show()
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1200);
+  }
+
+  function drawPill(ctx, x, y, w, h, alpha = 0.14) {
+    const r = h / 2;
+    ctx.save();
+    ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+    ctx.strokeStyle = "rgba(255,255,255,0.22)";
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawTri(ctx, rect) {
+    const x = rect.left;
+    const y = rect.top;
+    const w = rect.width;
+    const h = rect.height;
+    const cx = x + w / 2;
+
+    // base shadow
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.65)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 10;
+
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.strokeStyle = "rgba(255,255,255,0.26)";
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    ctx.moveTo(cx, y + h * 0.12);
+    ctx.lineTo(x + w * 0.90, y + h * 0.90);
+    ctx.lineTo(x + w * 0.10, y + h * 0.90);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // glow
+    ctx.save();
+    ctx.shadowColor = "rgba(90,220,255,0.26)";
+    ctx.shadowBlur = 22;
+    ctx.beginPath();
+    ctx.moveTo(cx, y + h * 0.12);
+    ctx.lineTo(x + w * 0.90, y + h * 0.90);
+    ctx.lineTo(x + w * 0.10, y + h * 0.90);
+    ctx.closePath();
+    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  async function takeScreenshot() {
+    const hydraCanvas = document.getElementById("hydra-canvas");
+    if (!hydraCanvas) {
+      alert("Não achei o canvas do Hydra.");
+      return false;
+    }
+
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const W = Math.floor(window.innerWidth * dpr);
+    const H = Math.floor(window.innerHeight * dpr);
+
+    const out = document.createElement("canvas");
+    out.width = W;
+    out.height = H;
+    const ctx = out.getContext("2d");
+    if (!ctx) return false;
+
+    // 1) Hydra (fundo)
+    try {
+      ctx.drawImage(hydraCanvas, 0, 0, W, H);
+    } catch (e) {
+      console.warn("drawImage(Hydra) falhou:", e);
+      alert("Não consegui capturar o Hydra (o preset pode ter mídia bloqueada pelo navegador).");
+      return false;
+    }
+
+    // 2) UI (triângulos/topbar/FABs)
+    ctx.save();
+    ctx.scale(dpr, dpr);
+
+    const nav = document.querySelector(".nav");
+    if (nav) {
+      const r = nav.getBoundingClientRect();
+      drawPill(ctx, r.left, r.top, r.width, r.height, 0.14);
+
+      ctx.fillStyle = "rgba(255,255,255,0.88)";
+      ctx.font = '760 12.5px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.textBaseline = "middle";
+      let tx = r.left + 14;
+      const ty = r.top + r.height / 2;
+      nav.querySelectorAll("a").forEach((a) => {
+        const t = (a.textContent || "").trim();
+        if (!t) return;
+        ctx.fillText(t, tx, ty);
+        tx += ctx.measureText(t).width + 18;
+      });
+    }
+
+    document.querySelectorAll(".presetTri").forEach((el) => {
+      const r = el.getBoundingClientRect();
+      drawTri(ctx, r);
+    });
+
+    document.querySelectorAll(".fabWrap .fab").forEach((b) => {
+      const r = b.getBoundingClientRect();
+      drawPill(ctx, r.left, r.top, r.width, r.height, 0.14);
+
+      const label = (b.getAttribute("aria-label") || b.textContent || "").trim();
+      const hasIcon = !!b.querySelector("svg");
+      if (!hasIcon) {
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.font = '760 13px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial';
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, r.left + 16, r.top + r.height / 2);
+      } else {
+        // desenha um ícone simples de câmera no centro
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.strokeStyle = "rgba(255,255,255,0.92)";
+        ctx.lineWidth = 2;
+        // corpo
+        ctx.beginPath();
+        ctx.rect(-9, -6, 18, 12);
+        ctx.stroke();
+        // lente
+        ctx.beginPath();
+        ctx.arc(0, 0, 3.2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    });
+
+    ctx.restore();
+
+    const blob = await new Promise((res) => out.toBlob(res, "image/png", 0.95));
+    if (!blob) {
+      alert("Não consegui gerar o PNG agora.");
+      return false;
+    }
+    downloadBlob(blob, filenameNow());
+    return true;
+  }
+
+  // =====================================================
+  // STARTrevokeObjectURL(url), 1200);
   }
 
   async function takeScreenshot() {
@@ -1132,7 +1272,7 @@ a.show()
 
     // Hydra
     initHydraBackground();
-    runActivePreset(state);
+    void runActivePreset(state);
 
     // Mini editor
     const miniApi = setupMiniEditor(state);
@@ -1219,41 +1359,3 @@ a.show()
   });
 
 })();
-
-// =========================
-// Print (salvar PNG do Hydra) — modo robusto sem prompt
-// =========================
-(function setupPrintShot(){
-  const btn = document.getElementById("printShot");
-  const hydraCanvas = document.getElementById("hydra-canvas");
-  if (!btn || !hydraCanvas) return;
-
-  function downloadBlob(blob, filename){
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url), 1200);
-  }
-
-  btn.addEventListener("click", () => {
-    // tenta exportar o canvas do Hydra
-    try{
-      hydraCanvas.toBlob((blob) => {
-        if (!blob) {
-          alert("Não consegui salvar a imagem agora. Dica: evite presets com imagens externas (CORS).");
-          return;
-        }
-        const stamp = new Date().toISOString().replace(/[:.]/g,"-");
-        downloadBlob(blob, `ceu-poetico-${stamp}.png`);
-      }, "image/png", 0.92);
-    }catch(err){
-      console.error(err);
-      alert("Erro ao salvar. Provável CORS em alguma textura/mídia do Hydra.");
-    }
-  });
-})();
-
