@@ -699,6 +699,124 @@ window.addEventListener("resize", () => {
   });
 })();
 
+// =====================================================
+// Hydra Mini: FLUTUANTE (drag) + RESIZE (todos os lados)
+// =====================================================
+(function enableHydraMiniFloat(){
+  const panel = document.getElementById("hydraMini");
+  if (!panel) return;
+
+  const topbar = panel.querySelector(".hydra-mini__top");
+  if (!topbar) return;
+
+  // cria handles de resize automaticamente (sem mexer no HTML)
+  const dirs = ["n","s","e","w","ne","nw","se","sw"];
+  for (const d of dirs){
+    const h = document.createElement("div");
+    h.className = `resize-handle resize-handle--${d}`;
+    h.dataset.dir = d;
+    panel.appendChild(h);
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+  // ---------- DRAG ----------
+  let drag = null;
+
+  topbar.addEventListener("pointerdown", (e) => {
+    if (panel.hidden) return;
+    e.preventDefault();
+
+    const r = panel.getBoundingClientRect();
+    drag = { startX: e.clientX, startY: e.clientY, left: r.left, top: r.top };
+
+    topbar.setPointerCapture(e.pointerId);
+  });
+
+  topbar.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+
+    const margin = 8;
+    const maxLeft = window.innerWidth - panel.offsetWidth - margin;
+    const maxTop  = window.innerHeight - panel.offsetHeight - margin;
+
+    panel.style.left = clamp(drag.left + dx, margin, maxLeft) + "px";
+    panel.style.top  = clamp(drag.top  + dy, margin, maxTop)  + "px";
+  });
+
+  topbar.addEventListener("pointerup", () => { drag = null; });
+  topbar.addEventListener("pointercancel", () => { drag = null; });
+
+  // ---------- RESIZE ----------
+  let resize = null;
+
+  panel.addEventListener("pointerdown", (e) => {
+    const handle = e.target.closest(".resize-handle");
+    if (!handle || panel.hidden) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const r = panel.getBoundingClientRect();
+    resize = {
+      dir: handle.dataset.dir,
+      startX: e.clientX,
+      startY: e.clientY,
+      left: r.left,
+      top: r.top,
+      width: r.width,
+      height: r.height
+    };
+
+    panel.setPointerCapture(e.pointerId);
+  });
+
+  panel.addEventListener("pointermove", (e) => {
+    if (!resize) return;
+
+    const dx = e.clientX - resize.startX;
+    const dy = e.clientY - resize.startY;
+
+    // mínimos (ajuste se quiser)
+    const minW = 300;
+    const minH = 220;
+
+    let left = resize.left;
+    let top = resize.top;
+    let width = resize.width;
+    let height = resize.height;
+
+    const dir = resize.dir;
+
+    if (dir.includes("e")) width = resize.width + dx;
+    if (dir.includes("w")) { width = resize.width - dx; left = resize.left + dx; }
+
+    if (dir.includes("s")) height = resize.height + dy;
+    if (dir.includes("n")) { height = resize.height - dy; top = resize.top + dy; }
+
+    width = Math.max(minW, width);
+    height = Math.max(minH, height);
+
+    // mantém dentro da tela
+    const margin = 8;
+    const maxLeft = window.innerWidth - width - margin;
+    const maxTop  = window.innerHeight - height - margin;
+
+    left = clamp(left, margin, maxLeft);
+    top  = clamp(top, margin, maxTop);
+
+    panel.style.left = `${left}px`;
+    panel.style.top  = `${top}px`;
+    panel.style.width = `${width}px`;
+    panel.style.height = `${height}px`;
+  });
+
+  panel.addEventListener("pointerup", () => { resize = null; });
+  panel.addEventListener("pointercancel", () => { resize = null; });
+})();
 
 
 
