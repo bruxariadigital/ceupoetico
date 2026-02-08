@@ -489,12 +489,14 @@ input[type="file"]{
 .presetDock{
   position: fixed;
   right: 16px;
-  top: calc(96px + env(safe-area-inset-top));
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 18;
   display: grid;
   gap: 10px;
   pointer-events: auto;
 }
+
 
 .presetTri{
   width: 42px;
