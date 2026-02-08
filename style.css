@@ -488,7 +488,7 @@ input[type="file"]{
 /* Presets (triângulos) */
 .presetDock{
   position: fixed;
-  right: 16px;
+  left: 16px;
   top: 50%;
   transform: translateY(-50%);
   z-index: 18;
