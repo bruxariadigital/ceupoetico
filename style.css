@@ -318,6 +318,22 @@ body{
 }
 .fab:active{ transform: translateY(1px); }
 
+/* FAB ícone (Print) */
+.fab--icon{
+  width: 46px;
+  padding: 12px 0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.fabIcon{
+  width: 20px;
+  height: 20px;
+  fill: rgba(255,255,255,0.92);
+  filter: drop-shadow(0 8px 14px rgba(0,0,0,0.25));
+}
+
+
 @media (max-width: 640px){
   .fabWrap{
     width: calc(100vw - 24px);

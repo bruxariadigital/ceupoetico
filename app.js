@@ -46,32 +46,19 @@
     A: {
       name: "A",
       renderBuf: "o0",
-      code: `// PARA VOCÊ, O QUE É SER POTIGUAR?
+      code: `// A — PARA VOCÊ, O QUE É SER POTIGUAR?
+// Nota: s0.initImage(URL) precisa de imagem com CORS liberado.
+// Para usar GIF sem erro: coloque o arquivo no repo e use:
+// s0.initImage("./assets/potiguar.gif")
 
-
-
-await loadScript("https://cdn.jsdelivr.net/gh/geikha/hyper-hydra@latest/hydra-text.js")
-
-await loadScript("https://hyper-hydra.glitch.me/hydra-text.js")
-
-hydraText.font = "serif"
-hydraText.lineWidth = "2%"
-str = " o que é ser potiguar? "
-
-s0.initImage("https://image2url.com/r2/default/gifs/1770579272000-56a42137-bb31-4f81-a13e-1a2ab3e05e8b.gif")
+s0.initCam()
 s1.initCam()
 
 src(s0)
   .mult(src(s1).add(src(s1).scale(1.006)))
-
-  .modulate(s0, .4)
-  .blend(s0, () => a.fft[1])
-.blend(src(o0).scale(1.02).colorama(.02))
-	.layer(text(str))
-	.diff(strokeText(str).modulateScale(noise(.51,.51), .4))
+  .modulate(noise(2, 0.15), .25)
+  .blend(src(s1), () => a.fft[1]*0.35)
   .out(o0)
-
-
 
 a.show()
 `
@@ -101,7 +88,7 @@ a.show()
     C: {
       name: "C",
       renderBuf: "o0",
-      code: `// olá, mundo
+      code: `// C — olá, mundo
 speed=.3
 
 osc(.33,3.3,3.3)
@@ -142,7 +129,7 @@ src(o2)
     D: {
       name: "D",
       renderBuf: "o2",
-      code: `// espelho
+      code: `// D — espelho
 
 s1.initCam()
 
@@ -1019,7 +1006,78 @@ a.show()
     });
   }
 
+  
   // =====================================================
+  // PRINT / “foto” da tela
+  // - usa html2canvas (CDN) quando disponível
+  // - fallback: exporta só o canvas do Hydra
+  // =====================================================
+  function filenameNow() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return `ceu-poetico-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.png`;
+  }
+
+  async function downloadBlob(blob, name) {
+    // tenta share no mobile (quando possível)
+    try {
+      const file = new File([blob], name, { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
+        await navigator.share({ files: [file], title: "Céu Poético" });
+        return;
+      }
+    } catch {}
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1200);
+  }
+
+  async function takeScreenshot() {
+    const name = filenameNow();
+
+    // 1) full-page (UI + bolhas + hydra), se html2canvas existir
+    try {
+      if (typeof window.html2canvas === "function") {
+        const canvas = await window.html2canvas(document.body, {
+          backgroundColor: null,
+          useCORS: true,
+          logging: false,
+          scale: Math.min(window.devicePixelRatio || 1, 2),
+        });
+        const blob = await new Promise((res) => canvas.toBlob(res, "image/png", 0.95));
+        if (blob) {
+          await downloadBlob(blob, name);
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn("Screenshot full falhou, tentando fallback:", e);
+    }
+
+    // 2) fallback: só Hydra
+    try {
+      const hydraCanvas = document.getElementById("hydra-canvas");
+      if (hydraCanvas && hydraCanvas.toBlob) {
+        const blob = await new Promise((res) => hydraCanvas.toBlob(res, "image/png", 0.95));
+        if (blob) {
+          await downloadBlob(blob, name);
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn("Fallback Hydra falhou:", e);
+    }
+
+    alert("Não consegui gerar o print neste dispositivo/navegador.");
+    return false;
+  }
+// =====================================================
   // START
   // =====================================================
   window.addEventListener("DOMContentLoaded", () => {
@@ -1030,6 +1088,8 @@ a.show()
 
     const composer = document.getElementById("composer");
     const openComposer = document.getElementById("openComposer");
+    const printShot = document.getElementById("printShot");
+
     const closeComposer = document.getElementById("closeComposer");
 
     const form = document.getElementById("muralForm");
@@ -1079,6 +1139,12 @@ a.show()
 
     // Preset dock (A/B/C/D)
     setupPresetDock(state, miniApi);
+
+    // Print (foto) — salva uma imagem
+    printShot?.addEventListener("click", async () => {
+      await takeScreenshot();
+    });
+
 
     // abrir composer
     openComposer?.addEventListener("click", () => {
