@@ -24,36 +24,39 @@
 
   <main class="stage">
   <canvas id="hydra-canvas" class="hydra-canvas" aria-hidden="true"></canvas>
-  <div id="garden" class="garden" aria-label="Mural do festival"></div>
-    <div id="presetDock" class="presetDock" aria-label="Presets do céu">
-  <button class="presetTri" data-preset="A" type="button" aria-label="Preset A"></button>
-  <button class="presetTri" data-preset="B" type="button" aria-label="Preset B"></button>
-  <button class="presetTri" data-preset="C" type="button" aria-label="Preset C"></button>
+  <div id="garden" class="garden" aria-label="mural interativo"></div>
+    <div id="presetDock" class="presetDock" aria-label="Presets do fundo">
+  <button class="presetTri is-active" type="button" data-preset="A" aria-label="Preset A"></button>
+  <button class="presetTri" type="button" data-preset="C" aria-label="Preset C"></button>
 </div>
 
 
-  <!-- ✅ barra fixa com os dois botões no mobile -->
-  <div class="fabbar" aria-label="Ações">
-    <button id="openComposer" class="fab" type="button" aria-haspopup="dialog">
-      Plantar uma semente
-    </button>
+ <!-- Botões inferiores (centralizados) -->
+<div class="fabWrap" aria-label="Ações">
+  <button id="openComposer" class="fab" type="button" aria-haspopup="dialog">
+    Plantar uma semente
+  </button>
 
-    <button id="openHydraMini" class="fab fab--right" type="button">
-      Crie
-    </button>
+  <button id="openHydraMini" class="fab" type="button">
+    Crie
+  </button>
+</div>
+
+<!-- Mini editor -->
+<div id="hydraMini" class="hydra-mini" hidden>
+  <div class="hydra-mini__top">
+    <strong>Hydra Sintetizador de Vídeo online</strong>
+    <button id="closeHydraMini" type="button" class="hydra-mini__x" aria-label="Fechar">✕</button>
   </div>
 
-  <div id="hydraMini" class="hydra-mini" hidden>
-    <div class="hydra-mini__top">
-      <strong>Hydra Sintetizador de Vídeo online</strong>
-      <button id="closeHydraMini" type="button" class="hydra-mini__x" aria-label="Fechar">✕</button>
-    </div>
-
-    <textarea id="hydraCode" spellcheck="false"></textarea>
+  <textarea id="hydraCode" spellcheck="false"></textarea>
 
   <div class="hydra-mini__actions">
-  <a id="resetHydra" class="resetLink" href="#">resetar preset</a>
-  <button id="runHydra" class="btn--mini" type="button">rodar</button>
+    <!-- reset sutil (link) -->
+    <a id="resetHydra" class="hydra-reset" href="#">resetar</a>
+
+    <button id="runHydra" class="btn" type="button">clique-me para rodar o código</button>
+  </div>
 </div>
 
 </main>
@@ -61,7 +64,7 @@
   <dialog id="composer" class="dialog" aria-label="Enviar para o mural">
     <form id="muralForm" class="card" method="dialog">
       <div class="cardHead">
-        <h1 class="title">Céu poético</h1>
+        <h1 class="title">Céu Poético</h1>
         <button id="closeComposer" class="iconBtn" type="button" aria-label="Fechar">✕</button>
       </div>
 
