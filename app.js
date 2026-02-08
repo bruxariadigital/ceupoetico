@@ -1,6 +1,96 @@
 (() => {
   "use strict";
 
+  // ===== HYDRA LAYER (background vivo) =====
+let hydraReady = false;
+let hoverBoost = 0;
+
+const params = {
+  blend: 0.3,
+  scale: 0.5,
+  mod: 0.2,
+  luma: 1.0,
+  hue: 2.0,
+  contrast: 1.0,
+  colorama: 0.7,
+  kaleid: 1.0,
+  sat: 1.0,
+  bright: 0.0
+};
+
+function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+function hash01(str){
+  let h = 2166136261;
+  for (let i=0;i<str.length;i++){
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967296;
+}
+
+function applySeedToHydra(seedText, mediaType){
+  const t = (seedText || "").trim();
+  const r = hash01(t || crypto.randomUUID());
+
+  // escolhe 1 parâmetro “principal” por semente
+  const pick = Math.floor(r * 7);
+
+  if (pick === 0) params.colorama = clamp(params.colorama + 0.15, 0, 4);
+  if (pick === 1) params.hue      = clamp(params.hue + 0.12, 0, 6);
+  if (pick === 2) params.blend    = clamp(params.blend + 0.04, 0, 1);
+  if (pick === 3) params.scale    = clamp(params.scale + 0.06, 0, 2);
+  if (pick === 4) params.mod      = clamp(params.mod + 0.05, 0, 2);
+  if (pick === 5) params.contrast = clamp(params.contrast + 0.08, 0, 3);
+  if (pick === 6) params.kaleid   = clamp(params.kaleid + 0.10, 0, 4);
+
+  // se tiver mídia, dá um “tint” extra
+  if ((mediaType || "").startsWith("image/")) params.sat = clamp(params.sat + 0.08, 0, 3);
+  if ((mediaType || "").startsWith("video/")) params.bright = clamp(params.bright + 0.02, -0.3, 0.6);
+}
+
+function initHydraBackground(){
+  if (hydraReady) return;
+  if (typeof window.Hydra === "undefined") return; // hydra-synth ainda não carregou
+
+  const canvas = document.getElementById("hydra-canvas");
+  if (!canvas) return;
+
+  // cria Hydra
+  // makeGlobal=true para permitir eval no mini-editor (rodar código)
+  // detectAudio=true pra usar a.fft
+  // eslint-disable-next-line no-undef
+  new Hydra({ canvas, detectAudio: true, makeGlobal: true });
+
+  // patch base (o seu), só que com parâmetros reativos + hoverBoost
+  s0.initCam();
+  speed = 0.1;
+
+  src(s0)
+    .blend(src(o0), () => params.blend)
+    .modulateScale(src(s0), () => params.scale)
+    .modulate(src(s0).color(() => a.fft[1]), () => params.mod)
+    .luma(() => params.luma)
+    .modulate(noise(() => a.fft[1], 2, 2))
+    .hue(() => params.hue, 2)
+    .contrast(() => params.contrast + hoverBoost * 0.45)
+    .blend(src(s0).colorama(() => params.colorama + hoverBoost * 0.7))
+    .modulateKaleid(noise(0.5, 1), () => params.kaleid)
+    .saturate(() => params.sat + hoverBoost * 0.9)
+    .brightness(() => params.bright + hoverBoost * 0.18)
+    .out(o0);
+
+  src(o0).diff(src(o0, 0.5).scrollX(0.2, 0.1)).out(o1);
+  render(o1);
+
+  a.setBins(9);
+  a.setCutoff(8);
+  a.show();
+
+  hydraReady = true;
+}
+
+
   // ====== CONFIG ======
   const SUPABASE_URL = "https://nroguehkffzgerirbdcn.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_87bQ1cjlVd6gw1Ugh45eYg_P8mTW2ZJ";
@@ -215,6 +305,10 @@
 
   // clique abre viewer completo
   el.addEventListener("click", openFn);
+  // hover da seed intensifica o Hydra
+el.addEventListener("mouseenter", () => { hoverBoost = 1; });
+el.addEventListener("mouseleave", () => { hoverBoost = 0; });
+
 
   return el;
 }
@@ -268,6 +362,89 @@
 
     const viewerEls = { viewer, viewerImg, viewerText, viewerMeta };
 
+    // Hydra: inicia (se a lib já carregou)
+initHydraBackground();
+
+// Mini editor popup
+const openHydraMini = document.getElementById("openHydraMini");
+const hydraMini = document.getElementById("hydraMini");
+const closeHydraMini = document.getElementById("closeHydraMini");
+const hydraCode = document.getElementById("hydraCode");
+const runHydra = document.getElementById("runHydra");
+
+const DEFAULT_PATCH = `
+///bruxariadigital@gmail.com
+
+
+
+//olá, mundo.
+
+speed=.2 // intensidade
+									//sinto que estou saindo de um casulo
+                   // para algumas pessoas, viver é um manifesto de si mesmo
+
+osc(.33,3.3,5.3)//.modulateHue(-3.3,-3.3,-3.3)
+.blend(shape(3, .2,.3).mult(
+(osc(2.3,3.3,3.3).modulateRotate(osc(3.3,3.3,3.3).hue(3).shift(2))).rotate(-.003,-.00004).color(1,1,8)
+  
+  ))
+.mult(osc(.33,.33,3.3)).modulateScale(noise(3.3,3.3,3.3)).diff(osc(5.33,.3,4))
+.mult(shape(3,.3,.2)).color(1)
+
+  .out(o1)
+
+src(o0).modulateHue(src(o0).scale(1.2))
+.layer(src(o1).luma(0.3, 2e-6),.9).color(1)
+.modulateRotate(src(o1).rotate(-.003,.00004).modulate(osc(.2,.5,4))).shift(8).rotate(.003,[.00004, -.00004]).hue(5).modulateScrollX(osc(3,.5,3.))
+.modulateScale(src(o0),[.4,.9])
+
+
+//.mult(shape(3,.3,.2).scale(1.006))
+
+
+.out(
+`;
+
+if (hydraCode) hydraCode.value = DEFAULT_PATCH;
+
+function positionMiniNearButton(){
+  if (!openHydraMini || !hydraMini) return;
+  const r = openHydraMini.getBoundingClientRect();
+  const margin = 10;
+
+  hydraMini.hidden = false;
+
+  const left = clamp(r.left, margin, window.innerWidth - hydraMini.offsetWidth - margin);
+  const top  = clamp(r.top - hydraMini.offsetHeight - 10, margin, window.innerHeight - hydraMini.offsetHeight - margin);
+
+  hydraMini.style.left = `${left}px`;
+  hydraMini.style.top  = `${top}px`;
+}
+
+openHydraMini?.addEventListener("click", () => {
+  initHydraBackground();
+  if (hydraMini?.hidden) positionMiniNearButton();
+  else hydraMini.hidden = true;
+});
+
+closeHydraMini?.addEventListener("click", () => { if (hydraMini) hydraMini.hidden = true; });
+
+runHydra?.addEventListener("click", () => {
+  initHydraBackground();
+  try {
+    // roda o patch no contexto global do Hydra (makeGlobal: true)
+    (0, eval)(hydraCode?.value || "");
+  } catch (e) {
+    console.error(e);
+    alert("Erro no código Hydra. Olha o console.");
+  }
+});
+
+window.addEventListener("resize", () => {
+  if (hydraMini && !hydraMini.hidden) positionMiniNearButton();
+});
+
+    
     // abrir modal SEM depender de supabase
     openComposer?.addEventListener("click", () => {
       if (composer?.showModal) composer.showModal();
@@ -318,6 +495,8 @@
         const mediaType = file?.type || null;
 
         await insertPost(text, mediaUrl, mediaType);
+        initHydraBackground();          // garante que o Hydra está vivo
+        applySeedToHydra(text, mediaType); // “plantar” mexe nos parâmetros
 
         if (textEl) textEl.value = "";
         if (mediaEl) mediaEl.value = "";
