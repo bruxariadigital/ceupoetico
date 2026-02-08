@@ -6,9 +6,9 @@
   --muted: rgba(255,255,255,0.72);
 }
 
-
 *{ box-sizing:border-box; }
 html,body{ height:100%; margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+
 body{
   min-height: 100svh;  /* stable viewport */
   min-height: 100dvh;  /* dynamic viewport */
@@ -30,12 +30,14 @@ body{
   z-index: 10;
   pointer-events:none;
 }
+
 .logo{
   width: min(280px, 55vw);
   height:auto;
   filter: drop-shadow(0 12px 30px rgba(0,0,0,0.25));
   pointer-events:auto;
 }
+
 .nav{
   display:flex;
   gap: 14px;
@@ -45,6 +47,7 @@ body{
   border: 1px solid var(--stroke);
   pointer-events:auto;
 }
+
 .nav a{
   color: var(--muted);
   text-decoration:none;
@@ -67,14 +70,15 @@ body{
   z-index: 1;
   pointer-events:auto;
 }
+
 /* reserva espaço para a topbar sem empurrar a viewport */
 @media (min-width: 1px){
   .garden{
     top: calc(82px + env(safe-area-inset-top));
   }
 }
-/* ===== BOTÃO MANCHA (AERO + texto central) ===== */
 
+/* ===== BOTÃO MANCHA (AERO + texto central) ===== */
 .fab{
   position: fixed;
   left: 50%;
@@ -85,7 +89,6 @@ body{
   min-width: 280px;
   min-height: 58px;
 
-  /* ESSENCIAL: texto no centro */
   display: grid;
   place-items: center;
 
@@ -102,17 +105,18 @@ body{
   user-select: none;
 
   text-shadow: 0 2px 10px rgba(0,0,0,0.35);
-
   isolation: isolate;
+
+  /* ✅ evita quebra e vazamento */
+  white-space: nowrap;
+  max-width: calc(100vw - 28px);
 }
 
 /* a MANCHA (silhueta) */
 .fab::before{
   content:"";
   position:absolute;
-
-  /* AQUI é onde a mancha cresce pra envolver o texto */
-  inset: -18px -34px;  /* mais largo e mais alto que o botão */
+  inset: -18px -34px;
   z-index: -2;
 
   background: rgba(255,255,255,0.18);
@@ -125,7 +129,6 @@ body{
     0 26px 80px rgba(0,0,0,0.32),
     inset 0 1px 0 rgba(255,255,255,0.45);
 
-  /* máscara orgânica */
   -webkit-mask: var(--amoeba-mask);
   mask: var(--amoeba-mask);
   -webkit-mask-size: 100% 100%;
@@ -136,12 +139,10 @@ body{
   animation: amoebaMorph 6.4s ease-in-out infinite;
 }
 
-/* highlight aero (dá “definição” de vidro) */
+/* highlight aero */
 .fab::after{
   content:"";
   position:absolute;
-
-  /* acompanha a mancha, mas um pouco menor */
   inset: -10px -26px;
   z-index: -1;
 
@@ -170,9 +171,7 @@ body{
     0 34px 100px rgba(0,0,0,0.36),
     inset 0 1px 0 rgba(255,255,255,0.55);
 }
-.fab:hover::after{
-  opacity: 0.9;
-}
+.fab:hover::after{ opacity: 0.9; }
 
 .fab:active{
   transform: translateX(-50%) translateY(1px);
@@ -181,18 +180,43 @@ body{
 @media (max-width: 640px){
   .fab{
     bottom: calc(22px + env(safe-area-inset-bottom));
-    min-width: 290px;
+
+    min-width: 0;
+    width: min(360px, calc(100vw - 28px));
+    padding: 0 18px;
+
     min-height: 62px;
     font-size: 16px;
   }
-  .fab::before{ inset: -18px -28px; }
-  .fab::after{ inset: -10px -22px; }
+
+  .fab::before{ inset: -16px -18px; }
+  .fab::after{ inset: -10px -14px; }
+}
+
+/* ✅ Botão "Crie" ancorado à direita (desktop) */
+.fab--right{
+  left: auto;
+  right: 18px;
+  transform: none;
+  min-width: 180px;
+}
+
+/* ✅ Botão "Crie" também responsivo no mobile */
+@media (max-width: 640px){
+  .fab--right{
+    right: 14px;
+    left: auto;
+    transform: none;
+
+    min-width: 0;
+    width: min(210px, calc(100vw - 28px));
+    padding: 0 16px;
+  }
 }
 
 /**************/
-
 :root{
-  /* SVG masks (4 variações) — curvas arredondadas, sem pontas secas */
+  /* SVG masks (4 variações) */
   --amoeba1: url("data:image/svg+xml;utf8,\
 <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 120'>\
 <path fill='black' d='M40,62 C28,40 36,18 64,16 C92,14 106,28 128,22 C150,16 160,6 184,12 C208,18 204,38 228,44 C252,50 282,44 286,66 C290,88 262,100 236,102 C210,104 198,114 172,110 C146,106 136,96 110,100 C84,104 52,96 40,62 Z'/>\
@@ -213,7 +237,6 @@ body{
 <path fill='black' d='M36,64 C24,44 34,20 62,18 C90,16 112,30 134,26 C156,22 166,8 192,14 C218,20 214,44 240,50 C266,56 292,48 290,70 C288,92 260,104 234,104 C208,104 196,114 170,110 C144,106 134,96 110,100 C86,104 48,92 36,64 Z'/>\
 </svg>");
 
-  /* máscara inicial */
   --amoeba-mask: var(--amoeba1);
 }
 
@@ -225,12 +248,7 @@ body{
   100% { --amoeba-mask: var(--amoeba1); transform: scale(1); }
 }
 
-
 /******/
-
-
-
-
 .seed{
   position:absolute;
   width: 44px;
@@ -246,12 +264,13 @@ body{
   box-shadow: 0 18px 40px rgba(0,0,0,0.18);
   transform: translate(-50%, -50%);
   animation: drift 5.8s ease-in-out infinite;
+  overflow: visible; /* bubble */
 }
+
 .seed:hover{
   border-color: rgba(255,255,255,0.42);
   background: rgba(255,255,255,0.16);
 }
-
 
 .seed .emoji{
   font-size: 18px;
@@ -295,23 +314,23 @@ body{
   flex-direction:column;
   gap: 10px;
 }
+
 .cardHead{
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap: 12px;
 }
+
 .title{ margin:0; font-size: 20px; letter-spacing:0.2px; }
 .subtitle{ margin:0; color: var(--muted); line-height:1.35; }
 
-/* Destaque do textarea */
 textarea{
   font-size: 16px;
   line-height: 1.5;
   padding: 14px;
 }
 
-/* Upload mais “discreto” */
 .uploadBlock{
   margin-top: 6px;
   padding: 10px 12px;
@@ -326,8 +345,8 @@ textarea{
   color: rgba(255,255,255,0.65);
 }
 
-
 .label{ font-size: 13px; color: var(--muted); }
+
 textarea{
   width:100%;
   border-radius: 12px;
@@ -355,6 +374,7 @@ input[type="file"]{
   justify-content:space-between;
   flex-wrap:wrap;
 }
+
 .btn{
   border:0;
   border-radius: 999px;
@@ -366,6 +386,7 @@ input[type="file"]{
   box-shadow: 0 12px 30px rgba(0,0,0,0.18);
 }
 .btn:disabled{ opacity:0.6; cursor:not-allowed; }
+
 .status{ min-height: 18px; margin: 0; font-size: 13px; color: var(--muted); }
 
 .viewer{
@@ -379,11 +400,13 @@ input[type="file"]{
   box-shadow: 0 24px 90px rgba(0,0,0,0.40);
   position:relative;
 }
+
 .viewerClose{
   position:absolute;
   top: 10px;
   right: 10px;
 }
+
 .iconBtn{
   border: 1px solid rgba(255,255,255,0.22);
   background: rgba(255,255,255,0.12);
@@ -392,6 +415,7 @@ input[type="file"]{
   padding: 8px 10px;
   cursor:pointer;
 }
+
 .viewerImg{
   width:100%;
   max-height: 52vh;
@@ -401,15 +425,21 @@ input[type="file"]{
   background: rgba(0,0,0,0.20);
   display:none;
 }
+
 .viewerText{
   margin: 12px 2px 0;
   line-height:1.5;
   white-space: pre-wrap;
+  color: rgba(255,255,255,0.94);
+  text-shadow: 0 2px 8px rgba(255,255,255,0.18);
 }
+
 .viewerMeta{
   margin: 10px 2px 0;
-  color: var(--muted);
+  color: rgba(220, 225, 235, 0.65);
   font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
 }
 
 /* Sobre */
@@ -431,10 +461,6 @@ input[type="file"]{
 .aboutText{ margin: 12px 0 0; line-height:1.6; }
 
 /* ====== Bubble preview (hover) — ÚNICO bloco ====== */
-
-.seed{ overflow: visible; }
-
-
 .seed .bubble{
   position: absolute;
   left: 50%;
@@ -504,66 +530,26 @@ input[type="file"]{
   text-align:right;
 }
 
-
-
-/* TEXTO DA MENSAGEM (quase branco) */
-#viewerText{
-  color: rgba(255,255,255,0.92);
-  font-size: 16px;
-  line-height: 1.5;
-  letter-spacing: 0.2px;
-}
-
-
-
-
-
-/* Viewer — mensagem humana (clara) */
-.viewerText{
-  color: rgba(255,255,255,0.94);
-  text-shadow: 0 2px 8px rgba(255,255,255,0.18);
-}
-
-/* Viewer — metadado do sistema (azul profundo, quase preto) */
-/* Viewer — metadado do sistema (preto 70%) */
-/* Viewer — metadado do sistema (cinza claro discreto) */
-.viewerMeta{
-  color: rgba(220, 225, 235, 0.65);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.2px;
-}
-
 /* Hydra fullscreen background */
 .hydra-canvas{
   position: fixed;
   inset: 0;
   width: 100vw;
   height: 100vh;
-  z-index: 0;          /* fundo */
-  pointer-events: none; /* não atrapalha clicar nas seeds */
+  z-index: 0;
+  pointer-events: none;
 }
 
-/* Garden/Seeds acima do Hydra (você já usa z-index:1 no .garden) */
-.garden{ z-index: 1; } /* reforço */
-
-/* Botão "Crie" com a mesma mancha do .fab, só que ancorado à direita */
-.fab--right{
-  left: auto;
-  right: 18px;
-  transform: none;
-  min-width: 180px;
-}
-
-/* Mini editor (<= 1/4 da tela) aparecendo perto do botão */
+/* Mini editor */
 .hydra-mini{
   position: fixed;
   z-index: 40;
 
-  width: min(460px, 44vw);
-  height: min(320px, 24vh);  /* ~ 1/4 */
-  max-width: 44vw;
-  max-height: 24vh;
+  width: min(560px, 52vw);
+  height: min(420px, 38vh);
+
+  max-width: min(70vw, calc(100vw - 20px));
+  max-height: min(60vh, calc(100vh - 20px));
 
   border: 1px solid rgba(255,255,255,.18);
   background: rgba(0,0,0,.55);
@@ -578,24 +564,33 @@ input[type="file"]{
 
   box-shadow: 0 18px 60px rgba(0,0,0,.35);
 
-    /* deixa redimensionar */
   resize: both;
   overflow: auto;
+}
 
-  /* tamanho inicial maior (bem mais confortável) */
-  width: min(560px, 52vw);
-  height: min(420px, 38vh);
-  max-width: 70vw;
-  max-height: 60vh;
+@media (max-width: 640px){
+  .hydra-mini{
+    width: calc(100vw - 20px);
+    height: min(55vh, 420px);
+    max-width: calc(100vw - 20px);
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
 }
 
 .hydra-mini__top{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  font-size: 14px;
+  gap: 10px;
+
+  font-size: 13px;
   opacity: .92;
+
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
 }
+.hydra-mini__top:active{ cursor: grabbing; }
 
 .hydra-mini__x{
   background: transparent;
@@ -634,14 +629,10 @@ input[type="file"]{
   color: rgba(255,255,255,.92);
   cursor: pointer;
 }
-
 .btn--mini:hover{
   background: rgba(255,255,255,.12);
 }
 
-
-
-
-
-
-
+.hydra-mini[hidden]{
+  display: none !important;
+}
