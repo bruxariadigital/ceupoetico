@@ -818,3 +818,92 @@ input[type="file"]{
 .resize-handle--se{ right:-6px; bottom:-6px; width:16px; height:16px; cursor: nwse-resize; }
 .resize-handle--sw{ left:-6px; bottom:-6px; width:16px; height:16px; cursor: nesw-resize; }
 
+/* =========================================
+   MOBILE: 2 botões lado a lado no centro
+   ========================================= */
+
+@media (max-width: 640px){
+
+  /* Base: reduz tamanho e texto proporcionalmente */
+  .fab{
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    min-width: 0;
+    min-height: 52px;
+    height: 52px;
+
+    font-size: 12.5px;     /* ✅ tipografia menor */
+    letter-spacing: 0.2px; /* mais delicado */
+    padding: 0 14px;
+
+    white-space: nowrap;
+    max-width: calc(50vw - 16px);
+  }
+
+  /* Mancha bem mais contida pra não vazar */
+  .fab::before{ inset: -12px -12px; }
+  .fab::after { inset: -8px  -9px;  }
+
+  /* ✅ Posicionamento lado a lado, centralizados */
+  #openComposer{
+    position: fixed;
+    left: calc(50% - 12px);
+    transform: translateX(-100%); /* cola no centro e vai pra esquerda */
+    width: min(48vw, 250px);
+  }
+
+  #openHydraMini{
+    position: fixed;
+    left: calc(50% + 12px);
+    transform: translateX(0);     /* cola no centro e vai pra direita */
+    right: auto;                  /* anula qualquer regra anterior */
+    width: min(34vw, 180px);
+  }
+
+  /* Se algum browser estiver “comendo” a largura por causa do texto */
+  #openComposer, #openHydraMini{
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Mini editor: sempre caber no mobile (e não nascer cortado) */
+  .hydra-mini{
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}
+
+/* =========================================
+   MINI EDITOR: handles de resize (todos lados/quinas)
+   (O JS vai criar os elementos .resize-handle)
+   ========================================= */
+
+.hydra-mini{
+  overflow: hidden; /* importante: handles não estouram layout */
+}
+
+/* título “pegável” pra arrastar */
+.hydra-mini__top{
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+.hydra-mini__top:active{ cursor: grabbing; }
+
+.resize-handle{
+  position:absolute;
+  z-index: 60;
+  background: transparent;
+}
+
+/* bordas */
+.resize-handle--n{ top:-8px; left:12px; right:12px; height:16px; cursor: ns-resize; }
+.resize-handle--s{ bottom:-8px; left:12px; right:12px; height:16px; cursor: ns-resize; }
+.resize-handle--e{ right:-8px; top:12px; bottom:12px; width:16px; cursor: ew-resize; }
+.resize-handle--w{ left:-8px; top:12px; bottom:12px; width:16px; cursor: ew-resize; }
+
+/* quinas */
+.resize-handle--ne{ right:-8px; top:-8px; width:18px; height:18px; cursor: nesw-resize; }
+.resize-handle--nw{ left:-8px; top:-8px; width:18px; height:18px; cursor: nwse-resize; }
+.resize-handle--se{ right:-8px; bottom:-8px; width:18px; height:18px; cursor: nwse-resize; }
+.resize-handle--sw{ left:-8px; bottom:-8px; width:18px; height:18px; cursor: nesw-resize; }
+
