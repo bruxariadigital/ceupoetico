@@ -633,6 +633,188 @@ input[type="file"]{
   background: rgba(255,255,255,.12);
 }
 
+
+
 .hydra-mini[hidden]{
   display: none !important;
 }
+
+
+/* ===========================
+   MOBILE LAYOUT: FABBAR
+   =========================== */
+
+.fabbar{
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  z-index: 12;
+
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+
+  width: min(740px, calc(100vw - 18px));
+  padding: 0;
+  pointer-events: auto;
+}
+
+/* desktop mantém seu estilo atual (botões com fixed individuais)
+   no mobile eles viram “buttons normais dentro da barra”. */
+@media (max-width: 640px){
+  .fab{
+    position: relative;          /* ✅ sai do fixed */
+    left: auto;
+    right: auto;
+    bottom: auto;
+    transform: none;
+
+    /* ✅ tamanho responsivo */
+    min-width: 0;
+    width: min(46vw, 280px);
+    height: 54px;               /* mais baixo */
+    min-height: 54px;
+
+    /* ✅ tipografia proporcional */
+    font-size: 13px;
+    letter-spacing: 0.3px;
+
+    padding: 0 14px;
+    white-space: nowrap;
+
+    /* evita que a mancha “exploda” pra fora */
+    max-width: 46vw;
+  }
+
+  /* mancha mais contida no mobile */
+  .fab::before{ inset: -14px -14px; }
+  .fab::after{ inset: -9px -10px; }
+
+  /* se os textos forem longos, permite encolher */
+  .fab{ text-overflow: ellipsis; overflow: hidden; }
+
+  /* botão Crie não precisa de regras especiais no mobile */
+  .fab--right{
+    min-width: 0;
+    width: min(34vw, 190px);
+    max-width: 34vw;
+  }
+}
+
+/* se quiser que no desktop continue exatamente como está,
+   NÃO mexa no seu CSS desktop atual de .fab e .fab--right.
+   Só o mobile muda com o media query acima. */
+
+
+/* ===========================
+   MINI EDITOR: flutuante + handles
+   =========================== */
+
+/* garante que hidden sempre esconda */
+.hydra-mini[hidden]{ display:none !important; }
+
+/* deixa flutuante e “pegável” */
+.hydra-mini{
+  position: fixed;
+  z-index: 40;
+  left: 18px; /* fallback caso JS não posicione */
+  top: calc(96px + env(safe-area-inset-top));
+
+  width: min(640px, 70vw);
+  height: min(460px, 46vh);
+
+  max-width: calc(100vw - 18px);
+  max-height: calc(100dvh - 18px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border-radius: 16px;
+  padding: 10px;
+
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 8px;
+
+  box-shadow: 0 18px 60px rgba(0,0,0,.35);
+
+  overflow: hidden; /* importante: handles não empurram layout */
+}
+
+/* barra de título serve pra arrastar */
+.hydra-mini__top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+
+  font-size: 13px;
+  opacity: .92;
+
+  cursor: grab;
+  user-select: none;
+  touch-action: none; /* mobile */
+}
+.hydra-mini__top:active{ cursor: grabbing; }
+
+.hydra-mini__x{
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+#hydraCode{
+  width: 100%;
+  height: 100%;
+  resize: none;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.40);
+  color: rgba(255,255,255,0.92);
+  padding: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.hydra-mini__actions{
+  display:flex;
+  justify-content:flex-end;
+  gap: 8px;
+}
+
+.btn--mini{
+  padding: 8px 12px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.08);
+  color: rgba(255,255,255,.92);
+  cursor: pointer;
+}
+.btn--mini:hover{ background: rgba(255,255,255,.12); }
+
+/* Handles de resize (todos os lados e quinas) */
+.resize-handle{
+  position:absolute;
+  z-index: 60;
+  background: transparent;
+}
+
+/* bordas */
+.resize-handle--n{ top:-6px; left:10px; right:10px; height:12px; cursor: ns-resize; }
+.resize-handle--s{ bottom:-6px; left:10px; right:10px; height:12px; cursor: ns-resize; }
+.resize-handle--e{ right:-6px; top:10px; bottom:10px; width:12px; cursor: ew-resize; }
+.resize-handle--w{ left:-6px; top:10px; bottom:10px; width:12px; cursor: ew-resize; }
+
+/* quinas */
+.resize-handle--ne{ right:-6px; top:-6px; width:16px; height:16px; cursor: nesw-resize; }
+.resize-handle--nw{ left:-6px; top:-6px; width:16px; height:16px; cursor: nwse-resize; }
+.resize-handle--se{ right:-6px; bottom:-6px; width:16px; height:16px; cursor: nwse-resize; }
+.resize-handle--sw{ left:-6px; bottom:-6px; width:16px; height:16px; cursor: nesw-resize; }
+
