@@ -23,12 +23,31 @@
   </header>
 
   <main class="stage">
+    <canvas id="hydra-canvas" class="hydra-canvas" aria-hidden="true"></canvas> <!-- add hydra -->
     <div id="garden" class="garden" aria-label="Mural do festival"></div>
 
     <button id="openComposer" class="fab" type="button" aria-haspopup="dialog">
       Plantar uma semente
     </button>
   </main>
+
+  <button id="openHydraMini" class="fab fab--right" type="button">
+  Crie
+</button>
+
+<div id="hydraMini" class="hydra-mini" hidden> <!-- add hydra -->
+  <div class="hydra-mini__top">
+    <strong>Hydra</strong>
+    <button id="closeHydraMini" class="hydra-mini__x" type="button" aria-label="Fechar">✕</button>
+  </div>
+
+  <textarea id="hydraCode" spellcheck="false"></textarea>
+
+  <div class="hydra-mini__actions">
+    <button id="runHydra" class="btn" type="button">Rodar</button>
+  </div>
+</div>
+
 
   <dialog id="composer" class="dialog" aria-label="Enviar para o mural">
     <form id="muralForm" class="card" method="dialog">
@@ -66,6 +85,7 @@
   </dialog>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="https://unpkg.com/hydra-synth"></script>
   <script defer src="./app.js"></script>
 </body>
 </html>
