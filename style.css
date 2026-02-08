@@ -484,3 +484,51 @@ input[type="file"]{
 .resize-handle--nw{ left:-8px; top:-8px; width:18px; height:18px; cursor: nwse-resize; }
 .resize-handle--se{ right:-8px; bottom:-8px; width:18px; height:18px; cursor: nwse-resize; }
 .resize-handle--sw{ left:-8px; bottom:-8px; width:18px; height:18px; cursor: nesw-resize; }
+
+/* Presets (triângulos) */
+.presetDock{
+  position: fixed;
+  right: 16px;
+  top: calc(96px + env(safe-area-inset-top));
+  z-index: 18;
+  display: grid;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.presetTri{
+  width: 42px;
+  height: 42px;
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.18);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  clip-path: polygon(50% 8%, 92% 88%, 8% 88%);
+  cursor: pointer;
+  box-shadow: 0 14px 40px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.10);
+  transition: transform .15s ease, background .15s ease, border-color .15s ease;
+}
+
+.presetTri:hover{
+  background: rgba(255,255,255,0.14);
+  border-color: rgba(255,255,255,0.26);
+  transform: translateY(-1px);
+}
+
+.presetTri.is-active{
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.34);
+}
+
+/* reset sutil (link) */
+.resetLink{
+  font-size: 12px;
+  color: rgba(255,255,255,0.62);
+  text-decoration: none;
+  padding: 8px 8px;
+}
+
+.resetLink:hover{
+  color: rgba(255,255,255,0.88);
+  text-decoration: underline;
+}
