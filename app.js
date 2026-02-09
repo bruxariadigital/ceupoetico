@@ -251,9 +251,6 @@ a.show()
 
   window.CEU_HOVER = 0;
 
-  // quando definido (número), trava o efeito aleatório até outra bolha ser “selecionada”
-  window.CEU_LOCKED_H = null;
-
   function fitHydraCanvasToScreen() {
     const canvas = document.getElementById("hydra-canvas");
     if (!canvas) return;
@@ -306,7 +303,7 @@ a.show()
     const fx = state.presets[presetId]?.fx || defaultFx();
 
     // suaviza “hover-hydra” (menos colorama / menos saturação)
-    const h = (typeof window.CEU_LOCKED_H === "number") ? window.CEU_LOCKED_H : (window.CEU_HOVER || 0);
+    const h = window.CEU_HOVER || 0;
 
     try {
       src(srcBuf)
@@ -633,40 +630,6 @@ a.show()
     // drag (desktop + mobile)
     enableSeedDrag(el, garden);
 
-
-    // long-press (>= 1s) para “travar” o efeito aleatório desta bolha
-    // fica ativo até outra bolha ser travada
-    let lockT = null;
-    const clearLockTimer = () => { if (lockT) { clearTimeout(lockT); lockT = null; } };
-
-    el.addEventListener("pointerdown", (e) => {
-      // não trava se começou dentro da bubble (texto/scroll)
-      if (e.target?.closest?.(".bubble")) return;
-
-      clearLockTimer();
-      lockT = setTimeout(() => {
-        // se estava arrastando, não trava
-        if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
-
-        // garante que existe um valor aleatório “atual” para esta bolha
-        if (typeof el._lastHoverH !== "number") {
-          el._lastHoverH = isHoverDesktop()
-            ? (0.28 + Math.random() * 0.45)
-            : (0.22 + Math.random() * 0.28);
-        }
-
-        window.CEU_LOCKED_H = el._lastHoverH;
-        window.CEU_HOVER = 0; // não conflitar com hover temporário
-
-        openSeedBubble(el);
-        applyPresetFxToDisplay(state.activePreset, state);
-      }, 1000);
-    });
-
-    el.addEventListener("pointerup", clearLockTimer);
-    el.addEventListener("pointercancel", clearLockTimer);
-    el.addEventListener("pointerleave", clearLockTimer);
-
     // hover (somente desktop): abre bolha + hover FX
     if (isHoverDesktop()) {
       let closeT = null;
@@ -675,18 +638,13 @@ a.show()
         clearTimeout(closeT);
         openSeedBubble(el);
 
-        if (typeof window.CEU_LOCKED_H !== "number") {
-          window.CEU_HOVER = 0.28 + Math.random() * 0.45;
-          el._lastHoverH = window.CEU_HOVER;
-          applyPresetFxToDisplay(state.activePreset, state);
-        }
+        window.CEU_HOVER = 0.28 + Math.random() * 0.45;
+        applyPresetFxToDisplay(state.activePreset, state);
       });
 
       el.addEventListener("pointerleave", () => {
-        if (typeof window.CEU_LOCKED_H !== "number") {
-          window.CEU_HOVER = 0;
-          applyPresetFxToDisplay(state.activePreset, state);
-        }
+        window.CEU_HOVER = 0;
+        applyPresetFxToDisplay(state.activePreset, state);
 
         closeT = setTimeout(() => {
           el.classList.remove("is-open");
@@ -699,17 +657,13 @@ a.show()
       const touchBoost = () => {
         // evita ativar se estava arrastando
         if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
-        if (typeof window.CEU_LOCKED_H === "number") return;
         window.CEU_HOVER = 0.22 + Math.random() * 0.28;
-        el._lastHoverH = window.CEU_HOVER;
         applyPresetFxToDisplay(state.activePreset, state);
       };
 
       const touchReset = () => {
-        if (typeof window.CEU_LOCKED_H !== "number") {
-          window.CEU_HOVER = 0;
-          applyPresetFxToDisplay(state.activePreset, state);
-        }
+        window.CEU_HOVER = 0;
+        applyPresetFxToDisplay(state.activePreset, state);
       };
 
       // pointer* funciona tanto em iOS/Android modernos quanto desktop
@@ -1009,7 +963,6 @@ a.show()
 
         miniApi?.syncEditorFromState?.();
         runActivePreset(state);
-        if (soundOn) playSoundForPreset(id);
         setActiveUI();
       });
     });
@@ -1050,65 +1003,6 @@ a.show()
     });
   }
 
-  
-  // =====================================================
-  // STRUDEL (som) — muted por padrão
-  // =====================================================
-  let soundOn = false;
-
-  function strudelAvailable() {
-    // @strudel/web expõe initStrudel + setcps + hush + note/stack/etc.
-    return typeof window.initStrudel === "function" && typeof window.hush === "function";
-  }
-
-  async function ensureStrudel() {
-    if (!strudelAvailable()) {
-      alert("Strudel ainda não carregou. Confira o <script> do @strudel/web no index.html.");
-      return false;
-    }
-    try {
-      // precisa de gesto do usuário; chamamos dentro do clique do botão
-      await window.initStrudel();
-      // tempo bem suave
-      if (typeof window.setcps === "function") window.setcps(0.55);
-      return true;
-    } catch (e) {
-      console.warn("Strudel init falhou:", e);
-      alert("Não consegui iniciar o som neste navegador. (WebAudio bloqueado?)");
-      return false;
-    }
-  }
-
-  function playSoundForPreset(presetId) {
-    if (!strudelAvailable()) return;
-
-    // para não empilhar sons
-    try { window.hush(); } catch {}
-
-    const id = String(presetId || "A").toUpperCase();
-
-    // patterns simples (synth) — pode ajustar depois
-    try {
-      if (id === "A") {
-        window.note("<c4 e4 g4>(3,8)").s("sine").gain(0.18).room(0.2).play();
-      } else if (id === "B") {
-        window.note("c3*8").s("sine").gain(0.12).cutoff(900).play();
-      } else if (id === "C") {
-        window.note("<c5 a4 f4 e4>(5,8)").s("sine").gain(0.14).delay(0.25).play();
-      } else if (id === "D") {
-        window.note("<c2 c3 c4>(3,8)").s("sine").gain(0.16).room(0.35).speed(0.75).play();
-      } else {
-        window.note("c4*8").s("sine").gain(0.12).play();
-      }
-    } catch (e) {
-      console.warn("Strudel play falhou:", e);
-    }
-  }
-
-  function stopSound() {
-    try { window.hush(); } catch {}
-  }
-
   // =====================================================
   // START
   // =====================================================
@@ -1120,7 +1014,6 @@ a.show()
 
     const composer = document.getElementById("composer");
     const openComposer = document.getElementById("openComposer");
-    const toggleSound = document.getElementById("toggleSound");
     const closeComposer = document.getElementById("closeComposer");
 
     const form = document.getElementById("muralForm");
@@ -1170,26 +1063,6 @@ a.show()
 
     // Preset dock (A/B/C/D)
     setupPresetDock(state, miniApi);
-
-    // Som (Strudel) — botão mute/unmute
-    toggleSound?.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (!soundOn) {
-        const ok = await ensureStrudel();
-        if (!ok) return;
-        soundOn = true;
-        toggleSound.setAttribute("aria-pressed", "true");
-        toggleSound.innerHTML = '<span aria-hidden="true">🔈</span>';
-        playSoundForPreset(state.activePreset);
-      } else {
-        soundOn = false;
-        toggleSound.setAttribute("aria-pressed", "false");
-        toggleSound.innerHTML = '<span aria-hidden="true">🔇</span>';
-        stopSound();
-      }
-    });
 
     // abrir composer
     openComposer?.addEventListener("click", () => {

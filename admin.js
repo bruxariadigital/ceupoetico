@@ -4,230 +4,239 @@
   const SUPABASE_URL = "https://nroguehkffzgerirbdcn.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_87bQ1cjlVd6gw1Ugh45eYg_P8mTW2ZJ";
 
-  let sb = null;
-  function getClient() {
-    if (sb) return sb;
-    if (!window.supabase) throw new Error("supabase-js não carregou");
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    return sb;
-  }
-
+  const sb = window.supabase?.createClient?.(SUPABASE_URL, SUPABASE_ANON_KEY);
   const $ = (id) => document.getElementById(id);
 
-  function fmt(iso) {
+  const email = $("email");
+  const password = $("password");
+  const loginBtn = $("loginBtn");
+  const signupBtn = $("signupBtn");
+  const resetBtn = $("resetBtn");
+  const logoutBtn = $("logoutBtn");
+  const authStatus = $("authStatus");
+  const authBox = $("authBox");
+  const listBox = $("listBox");
+  const postsEl = $("posts");
+  const countEl = $("count");
+  const refreshBtn = $("refreshBtn");
+
+  function setStatus(msg) {
+    if (authStatus) authStatus.textContent = msg || "";
+  }
+
+  function fmtDate(iso) {
     try {
-      return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+      const d = new Date(iso);
+      return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
     } catch {
-      return iso || "";
+      return "";
     }
   }
 
-  async function signIn(email, password) {
-    const client = getClient();
-    return client.auth.signInWithPassword({ email, password });
+  function extractStoragePath(publicUrl) {
+    // Ex: https://<proj>.supabase.co/storage/v1/object/public/mural/<path>
+    try {
+      const marker = "/storage/v1/object/public/mural/";
+      const i = publicUrl.indexOf(marker);
+      if (i === -1) return null;
+      return publicUrl.slice(i + marker.length);
+    } catch {
+      return null;
+    }
   }
 
-  async function signUp(email, password) {
-    const client = getClient();
-    // por padrão, Supabase pode exigir confirmação de e-mail conforme configuração do projeto
-    return client.auth.signUp({ email, password });
+  async function getUser() {
+    const { data } = await sb.auth.getUser();
+    return data?.user || null;
   }
 
-  async function resetPassword(email) {
-    const client = getClient();
-    // precisa configurar "Site URL" / redirect no Supabase Auth settings
-    return client.auth.resetPasswordForEmail(email);
+  async function refreshUI() {
+    const user = await getUser();
+    const logged = !!user;
+
+    authBox.hidden = logged;
+    listBox.hidden = !logged;
+    logoutBtn.hidden = !logged;
+
+    if (logged) {
+      setStatus("");
+      await loadPosts();
+    } else {
+      postsEl.innerHTML = "";
+      countEl.textContent = "—";
+    }
   }
 
-  async function signOut() {
-    const client = getClient();
-    return client.auth.signOut();
-  }
+  async function loadPosts() {
+    if (!sb) return;
 
-  async function fetchPosts() {
-    const client = getClient();
-    const { data, error } = await client
+    postsEl.innerHTML = "<div class=\"adminHint\">Carregando…</div>";
+    const { data, error } = await sb
       .from("mural_posts")
       .select("id, created_at, text, image_url, media_type")
       .order("created_at", { ascending: false })
-      .limit(500);
+      .limit(400);
 
-    if (error) throw error;
-    return data || [];
-  }
-
-  async function deletePost(id) {
-    const client = getClient();
-    const { error } = await client.from("mural_posts").delete().eq("id", id);
-    if (error) throw error;
-  }
-
-  function renderList(items) {
-    const list = $("list");
-    if (!list) return;
-    list.innerHTML = "";
-
-    if (!items.length) {
-      list.innerHTML = "<p class=\"subtitle\">Sem entradas.</p>";
+    if (error) {
+      postsEl.innerHTML = "";
+      countEl.textContent = "Erro";
+      setStatus("Não consegui carregar os posts. Verifique permissões/RLS.");
+      console.error(error);
       return;
     }
 
-    items.forEach((p) => {
-      const card = document.createElement("div");
-      card.className = "adminItem";
+    const items = data || [];
+    countEl.textContent = String(items.length);
+    postsEl.innerHTML = "";
 
-      const top = document.createElement("div");
-      top.className = "adminItemTop";
+    items.forEach((p) => {
+      const row = document.createElement("div");
+      row.className = "adminItem";
 
       const meta = document.createElement("div");
       meta.className = "adminMeta";
-      meta.textContent = `${fmt(p.created_at)} • ${p.media_type || "sem mídia"} • id: ${p.id}`;
+      meta.textContent = `${fmtDate(p.created_at)}  •  id: ${p.id}`;
+
+      const body = document.createElement("div");
+      body.className = "adminBody";
+      body.textContent = (p.text || "").slice(0, 900) || "(sem texto)";
+
+      const media = document.createElement("div");
+      media.className = "adminMedia";
+      if (p.image_url) {
+        const a = document.createElement("a");
+        a.href = p.image_url;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.textContent = `mídia: ${p.media_type || "arquivo"}`;
+        media.appendChild(a);
+      }
 
       const actions = document.createElement("div");
       actions.className = "adminActions";
 
-      const del = document.createElement("button");
-      del.className = "btn";
-      del.type = "button";
-      del.textContent = "Apagar";
-      del.addEventListener("click", async () => {
-        const ok = confirm("Apagar esta entrada do mural? Isso não pode ser desfeito.");
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "btn adminDanger";
+      delBtn.textContent = "Apagar";
+
+      delBtn.addEventListener("click", async () => {
+        const ok = confirm("Apagar este post do mural? Isso não pode ser desfeito.");
         if (!ok) return;
+
+        delBtn.disabled = true;
+        delBtn.textContent = "Apagando…";
+
         try {
-          del.disabled = true;
-          await deletePost(p.id);
-          card.remove();
+          // 1) apaga linha
+          const { error: delErr } = await sb.from("mural_posts").delete().eq("id", p.id);
+          if (delErr) throw delErr;
+
+          // 2) tenta apagar arquivo no storage (se for do bucket mural)
+          if (p.image_url) {
+            const path = extractStoragePath(p.image_url);
+            if (path) {
+              const { error: stErr } = await sb.storage.from("mural").remove([path]);
+              if (stErr) console.warn("Não consegui remover arquivo do storage:", stErr);
+            }
+          }
+
+          row.remove();
+          const now = Math.max(0, (parseInt(countEl.textContent || "0", 10) || 0) - 1);
+          countEl.textContent = String(now);
         } catch (e) {
           console.error(e);
-          alert("Não consegui apagar. Verifique RLS/policies no Supabase.");
-        } finally {
-          del.disabled = false;
+          alert("Não consegui apagar. Verifique as permissões (RLS) do Supabase.");
+          delBtn.disabled = false;
+          delBtn.textContent = "Apagar";
         }
       });
 
-      actions.appendChild(del);
-      top.appendChild(meta);
-      top.appendChild(actions);
-
-      const body = document.createElement("div");
-      body.className = "adminBody";
-
-      if (p.image_url && (p.media_type || "").startsWith("image/")) {
-        const img = document.createElement("img");
-        img.src = p.image_url;
-        img.alt = "";
-        img.loading = "lazy";
-        img.className = "adminImg";
-        body.appendChild(img);
-      } else if (p.image_url) {
-        const a = document.createElement("a");
-        a.href = p.image_url;
-        a.target = "_blank";
-        a.rel = "noreferrer";
-        a.textContent = p.image_url;
-        a.className = "adminLink";
-        body.appendChild(a);
-      }
-
-      if (p.text) {
-        const pre = document.createElement("pre");
-        pre.className = "adminText";
-        pre.textContent = p.text;
-        body.appendChild(pre);
-      }
-
-      card.appendChild(top);
-      card.appendChild(body);
-      list.appendChild(card);
+      actions.appendChild(delBtn);
+      row.appendChild(meta);
+      row.appendChild(body);
+      if (p.image_url) row.appendChild(media);
+      row.appendChild(actions);
+      postsEl.appendChild(row);
     });
   }
 
-  function setAuthedUI(isAuthed) {
-    $("authBox")?.toggleAttribute("hidden", isAuthed);
-    $("adminBox")?.toggleAttribute("hidden", !isAuthed);
-    $("logoutBtn")?.toggleAttribute("hidden", !isAuthed);
+  // ---- Auth ----
+  async function login() {
+    if (!sb) return;
+    const e = (email?.value || "").trim();
+    const p = password?.value || "";
+    if (!e || !p) {
+      setStatus("Preencha e-mail e senha.");
+      return;
+    }
+    setStatus("Entrando…");
+    const { error } = await sb.auth.signInWithPassword({ email: e, password: p });
+    if (error) {
+      console.error(error);
+      setStatus(error.message || "Falha no login.");
+      return;
+    }
+    await refreshUI();
   }
 
-  async function refresh() {
-    $("listStatus").textContent = "Carregando…";
-    try {
-      const items = await fetchPosts();
-      renderList(items);
-      $("listStatus").textContent = `${items.length} entrada(s).`;
-    } catch (e) {
-      console.error(e);
-      $("listStatus").textContent = "Erro ao carregar. Verifique RLS/policies e se você está logada.";
+  async function signup() {
+    if (!sb) return;
+    const e = (email?.value || "").trim();
+    const p = password?.value || "";
+    if (!e || !p) {
+      setStatus("Preencha e-mail e senha.");
+      return;
     }
+    setStatus("Criando conta…");
+    const { error } = await sb.auth.signUp({ email: e, password: p });
+    if (error) {
+      console.error(error);
+      setStatus(error.message || "Falha ao criar conta.");
+      return;
+    }
+    setStatus("Conta criada. Se o Supabase exigir confirmação, verifique o e-mail.");
+  }
+
+  async function resetPass() {
+    if (!sb) return;
+    const e = (email?.value || "").trim();
+    if (!e) {
+      setStatus("Digite seu e-mail para receber o link.");
+      return;
+    }
+    setStatus("Enviando link…");
+    const { error } = await sb.auth.resetPasswordForEmail(e);
+    if (error) {
+      console.error(error);
+      setStatus(error.message || "Não consegui enviar o e-mail.");
+      return;
+    }
+    setStatus("Link enviado. Verifique sua caixa de entrada.");
+  }
+
+  async function logout() {
+    if (!sb) return;
+    await sb.auth.signOut();
+    await refreshUI();
   }
 
   window.addEventListener("DOMContentLoaded", async () => {
-    const logoutBtn = $("logoutBtn");
-    const loginForm = $("loginForm");
-    const signupBtn = $("signupBtn");
-    const resetBtn = $("resetBtn");
-    const refreshBtn = $("refreshBtn");
-    const status = $("authStatus");
+    if (!sb) {
+      setStatus("Supabase não carregou. Confira o <script> no admin.html.");
+      return;
+    }
 
-    const client = getClient();
+    loginBtn?.addEventListener("click", login);
+    signupBtn?.addEventListener("click", signup);
+    resetBtn?.addEventListener("click", resetPass);
+    logoutBtn?.addEventListener("click", logout);
+    refreshBtn?.addEventListener("click", loadPosts);
 
-    // estado inicial
-    const session = await client.auth.getSession();
-    setAuthedUI(!!session.data.session);
-    if (session.data.session) refresh();
-
-    client.auth.onAuthStateChange((_event, sess) => {
-      setAuthedUI(!!sess);
-      if (sess) refresh();
+    sb.auth.onAuthStateChange(() => {
+      refreshUI();
     });
 
-    loginForm?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const email = $("email").value.trim();
-      const password = $("password").value;
-      status.textContent = "Entrando…";
-      const { error } = await signIn(email, password);
-      if (error) {
-        status.textContent = "Erro: " + error.message;
-      } else {
-        status.textContent = "Ok.";
-      }
-    });
-
-    signupBtn?.addEventListener("click", async () => {
-      const email = $("email").value.trim();
-      const password = $("password").value;
-      if (!email || !password) {
-        status.textContent = "Preencha e-mail e senha para criar conta.";
-        return;
-      }
-      status.textContent = "Criando conta…";
-      const { error } = await signUp(email, password);
-      if (error) {
-        status.textContent = "Erro: " + error.message;
-      } else {
-        status.textContent = "Conta criada. (Pode exigir confirmação por e-mail — depende da configuração do Supabase.)";
-      }
-    });
-
-    resetBtn?.addEventListener("click", async () => {
-      const email = $("email").value.trim();
-      if (!email) {
-        status.textContent = "Digite seu e-mail para recuperar a senha.";
-        return;
-      }
-      status.textContent = "Enviando e-mail de recuperação…";
-      const { error } = await resetPassword(email);
-      if (error) {
-        status.textContent = "Erro: " + error.message;
-      } else {
-        status.textContent = "Enviado! Confira seu e-mail.";
-      }
-    });
-
-    logoutBtn?.addEventListener("click", async () => {
-      await signOut();
-    });
-
-    refreshBtn?.addEventListener("click", refresh);
+    await refreshUI();
   });
 })();
