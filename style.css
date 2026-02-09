@@ -735,16 +735,19 @@ input[type="file"]{
 .resize-handle--se{ right:-2px; bottom:-2px; cursor:se-resize; }
 .resize-handle--sw{ left:-2px; bottom:-2px; cursor:sw-resize; }
 
-/* === TRIÂNGULOS: stroke real + sombra projetada === */
+/* === TRIÂNGULOS — AERO REFINADO (glass + stroke leve) === */
 
 .presetTri{
   position: relative;
   overflow: visible;
-  /* sombra projetada para baixo (funciona melhor com clip-path) */
-  filter: drop-shadow(0 16px 26px rgba(0,0,0,0.55));
+
+  /* sombra projetada, mais longa e suave */
+  filter:
+    drop-shadow(0 22px 38px rgba(0,0,0,0.45))
+    drop-shadow(0 0 18px rgba(90,220,255,0.10));
 }
 
-/* SVG que desenha o stroke com precisão */
+/* SVG ocupa todo o botão */
 .triSvg{
   position: absolute;
   inset: 0;
@@ -753,26 +756,32 @@ input[type="file"]{
   pointer-events: none;
 }
 
-/* Stroke fino “tipo bolha” + brilho sutil */
+/* Preenchimento glass MUITO sutil + stroke fino */
 .triPoly{
-  fill: transparent; /* só queremos a linha aqui */
-  stroke: rgba(255,255,255,0.30); /* linha fina */
-  stroke-width: 1.2;              /* ajuste fino */
+  fill: rgba(255,255,255,0.035); /* quase invisível */
+  stroke: rgba(243,241,234,0.42); /* off-white translúcido */
+  stroke-width: 1;               /* linha fina */
   vector-effect: non-scaling-stroke;
+
+  /* brilho delicado */
   filter:
-    drop-shadow(0 0 10px rgba(90,220,255,0.10));
+    drop-shadow(0 0 8px rgba(90,220,255,0.12));
 }
 
-/* Hover: aumenta contraste do stroke */
+/* Hover: só um pouco mais presente */
 .presetTri:hover .triPoly{
-  stroke: rgba(255,255,255,0.45);
-  filter: drop-shadow(0 0 14px rgba(90,220,255,0.16));
+  fill: rgba(255,255,255,0.06);
+  stroke: rgba(243,241,234,0.60);
+  filter:
+    drop-shadow(0 0 12px rgba(90,220,255,0.18));
 }
 
-/* Ativo: mais evidente, sem exagerar */
+/* Ativo: destaque elegante, sem “gritar” */
 .presetTri.is-active .triPoly{
-  stroke: rgba(255,255,255,0.62);
+  fill: rgba(255,255,255,0.08);
+  stroke: rgba(243,241,234,0.78);
   filter:
-    drop-shadow(0 0 18px rgba(90,220,255,0.24));
+    drop-shadow(0 0 16px rgba(90,220,255,0.28));
 }
+
 
