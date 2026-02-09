@@ -734,3 +734,45 @@ input[type="file"]{
 .resize-handle--nw{ left:-2px; top:-2px; cursor:nw-resize; }
 .resize-handle--se{ right:-2px; bottom:-2px; cursor:se-resize; }
 .resize-handle--sw{ left:-2px; bottom:-2px; cursor:sw-resize; }
+
+/* === TRIÂNGULOS: stroke real + sombra projetada === */
+
+.presetTri{
+  position: relative;
+  overflow: visible;
+  /* sombra projetada para baixo (funciona melhor com clip-path) */
+  filter: drop-shadow(0 16px 26px rgba(0,0,0,0.55));
+}
+
+/* SVG que desenha o stroke com precisão */
+.triSvg{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Stroke fino “tipo bolha” + brilho sutil */
+.triPoly{
+  fill: transparent; /* só queremos a linha aqui */
+  stroke: rgba(255,255,255,0.30); /* linha fina */
+  stroke-width: 1.2;              /* ajuste fino */
+  vector-effect: non-scaling-stroke;
+  filter:
+    drop-shadow(0 0 10px rgba(90,220,255,0.10));
+}
+
+/* Hover: aumenta contraste do stroke */
+.presetTri:hover .triPoly{
+  stroke: rgba(255,255,255,0.45);
+  filter: drop-shadow(0 0 14px rgba(90,220,255,0.16));
+}
+
+/* Ativo: mais evidente, sem exagerar */
+.presetTri.is-active .triPoly{
+  stroke: rgba(255,255,255,0.62);
+  filter:
+    drop-shadow(0 0 18px rgba(90,220,255,0.24));
+}
+
