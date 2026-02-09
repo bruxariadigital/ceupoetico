@@ -46,20 +46,16 @@
     A: {
       name: "A",
       renderBuf: "o0",
-      code: `// PARA VOCÊ, O QUE É SER POTIGUAR?
+      code: `// A — PARA VOCÊ, O QUE É SER POTIGUAR?
 
 s0.initImage("https://image2url.com/r2/default/gifs/1770579272000-56a42137-bb31-4f81-a13e-1a2ab3e05e8b.gif")
 s1.initCam()
 
 src(s0)
   .mult(src(s1).add(src(s1).scale(1.006)))
-
   .modulate(s0, .4)
   .blend(s0, () => a.fft[1])
-
   .out(o0)
-
-
 
 a.show()
 `
@@ -89,7 +85,7 @@ a.show()
     C: {
       name: "C",
       renderBuf: "o0",
-      code: `// olá, mundo
+      code: `// C — olá, mundo
 speed=.3
 
 osc(.33,3.3,3.3)
@@ -130,7 +126,7 @@ src(o2)
     D: {
       name: "D",
       renderBuf: "o2",
-      code: `// espelho
+      code: `// D — espelho
 
 s1.initCam()
 
@@ -254,6 +250,7 @@ a.show()
   let hydraInstance = null;
 
   window.CEU_HOVER = 0;
+  window.CEU_HOVER_FX = { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
 
   function fitHydraCanvasToScreen() {
     const canvas = document.getElementById("hydra-canvas");
@@ -306,15 +303,16 @@ a.show()
 
     const fx = state.presets[presetId]?.fx || defaultFx();
 
-    // suaviza “hover-hydra” (menos colorama / menos saturação)
+    // hover “aleatório por bolha”: um boost (h) + deltas por parâmetro
     const h = window.CEU_HOVER || 0;
+    const hf = window.CEU_HOVER_FX || { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
 
     try {
       src(srcBuf)
-        .contrast(() => fx.contrast + h * 0.14)
-        .saturate(() => fx.saturate + h * 0.22)
-        .brightness(() => fx.brightness + h * 0.05)
-        .colorama(() => fx.colorama + h * 0.16)
+        .contrast(() => fx.contrast + (h * 0.12) + (hf.contrast || 0))
+        .saturate(() => fx.saturate + (h * 0.18) + (hf.saturate || 0))
+        .brightness(() => fx.brightness + (h * 0.05) + (hf.brightness || 0))
+        .colorama(() => fx.colorama + (h * 0.12) + (hf.colorama || 0))
         .out(outBuf);
 
       if (typeof window.render === "function") window.render(outBuf);
@@ -467,6 +465,19 @@ a.show()
     return options[(h >>> 0) % options.length];
   }
 
+  function randomHoverFx() {
+    // deltas pequenos e elegantes (sem estourar saturação/colorama)
+    // cada bolha/hover “vira” um mini-preset temporário
+    return {
+      contrast:   (Math.random() * 0.20 - 0.08),   // -0.08 .. +0.12
+      saturate:   (Math.random() * 0.30 - 0.10),   // -0.10 .. +0.20
+      brightness: (Math.random() * 0.10 - 0.05),   // -0.05 .. +0.05
+      colorama:   (Math.random() * 0.18 - 0.06)    // -0.06 .. +0.12
+    };
+  }
+
+
+
   function openViewer(viewerEls, post) {
     const { viewer, viewerImg, viewerText, viewerMeta } = viewerEls;
     const mediaType = post.media_type || "";
@@ -580,6 +591,9 @@ a.show()
     el.className = "seed";
     el.type = "button";
 
+    // tooltip: descreve a função da bolha
+    el.setAttribute("data-tip", "Marca no céu: passe o mouse para ver o efeito; clique para abrir.");
+
     const x = 6 + Math.random() * 88;
     const y = 12 + Math.random() * 76;
     el.style.left = x.toFixed(2) + "%";
@@ -642,12 +656,14 @@ a.show()
         clearTimeout(closeT);
         openSeedBubble(el);
 
-        window.CEU_HOVER = 0.28 + Math.random() * 0.45;
+        window.CEU_HOVER = 0.22 + Math.random() * 0.42;
+        window.CEU_HOVER_FX = randomHoverFx();
         applyPresetFxToDisplay(state.activePreset, state);
       });
 
       el.addEventListener("pointerleave", () => {
         window.CEU_HOVER = 0;
+        window.CEU_HOVER_FX = { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
         applyPresetFxToDisplay(state.activePreset, state);
 
         closeT = setTimeout(() => {
@@ -661,12 +677,14 @@ a.show()
       const touchBoost = () => {
         // evita ativar se estava arrastando
         if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
-        window.CEU_HOVER = 0.22 + Math.random() * 0.28;
+        window.CEU_HOVER = 0.18 + Math.random() * 0.28;
+        window.CEU_HOVER_FX = randomHoverFx();
         applyPresetFxToDisplay(state.activePreset, state);
       };
 
       const touchReset = () => {
         window.CEU_HOVER = 0;
+        window.CEU_HOVER_FX = { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
         applyPresetFxToDisplay(state.activePreset, state);
       };
 
@@ -1032,6 +1050,73 @@ a.show()
     const viewerText = document.getElementById("viewerText");
     const viewerMeta = document.getElementById("viewerMeta");
     const viewerEls = { viewer, viewerImg, viewerText, viewerMeta };
+
+    // =====================================================
+    // TOOLTIP (1s delay) — usa data-tip em qualquer elemento
+    // =====================================================
+    (function initTooltips(){
+      const tip = document.createElement("div");
+      tip.className = "uiTip";
+      tip.setAttribute("role", "tooltip");
+      tip.style.display = "none";
+      document.body.appendChild(tip);
+
+      let t = null;
+      let currentEl = null;
+
+      const show = (el) => {
+        const text = el?.getAttribute?.("data-tip");
+        if (!text) return;
+        tip.textContent = text;
+        tip.style.display = "block";
+        tip.style.opacity = "1";
+
+        const r = el.getBoundingClientRect();
+        const margin = 10;
+
+        const w = tip.offsetWidth;
+        const h = tip.offsetHeight;
+
+        let left = r.left + (r.width/2) - (w/2);
+        left = clamp(left, margin, window.innerWidth - w - margin);
+
+        let top = r.top - h - 10;
+        if (top < margin) top = r.bottom + 10;
+
+        tip.style.left = `${left}px`;
+        tip.style.top = `${top}px`;
+      };
+
+      const hide = () => {
+        clearTimeout(t);
+        t = null;
+        currentEl = null;
+        tip.style.display = "none";
+      };
+
+      document.addEventListener("pointerenter", (e) => {
+        const el = e.target?.closest?.("[data-tip]");
+        if (!el) return;
+        if (el.matches?.("[disabled]")) return;
+
+        currentEl = el;
+        clearTimeout(t);
+        t = setTimeout(() => {
+          if (currentEl === el) show(el);
+        }, 1000);
+      }, true);
+
+      document.addEventListener("pointerleave", (e) => {
+        const el = e.target?.closest?.("[data-tip]");
+        if (!el) return;
+        hide();
+      }, true);
+
+      window.addEventListener("scroll", hide, true);
+      window.addEventListener("resize", hide);
+    })();
+
+
 
     // Fecha bolhas ao clicar em qualquer lugar fora
     document.addEventListener("pointerdown", (e) => {

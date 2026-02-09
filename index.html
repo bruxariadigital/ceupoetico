@@ -13,8 +13,8 @@
 <body class="sky">
   <header class="topbar">
     <nav class="nav" aria-label="Menu">
-      <a href="./index.html" class="active">Início</a>
-      <a href="#" id="openAbout">O que é ser potiguar?</a>
+      <a href="./index.html" class="active" data-tip="Voltar para o céu principal.">Início</a>
+      <a href="#" id="openAbout" data-tip="Abrir a poética do festival Potiguarias Visuais.">O que é ser potiguar?</a>
     </nav>
   </header>
 
@@ -24,32 +24,12 @@
     <div id="garden" class="garden" aria-label="mural interativo"></div>
 
     <!-- Triângulos / presets (A-B-C-D) -->
-   <div id="presetDock" class="presetDock" aria-label="Presets do fundo">
-  <button class="presetTri is-active" type="button" data-preset="A" aria-label="Preset A">
-    <svg class="triSvg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-      <polygon class="triPoly" points="50,8 92,88 8,88"></polygon>
-    </svg>
-  </button>
-
-  <button class="presetTri" type="button" data-preset="B" aria-label="Preset B">
-    <svg class="triSvg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-      <polygon class="triPoly" points="50,8 92,88 8,88"></polygon>
-    </svg>
-  </button>
-
-  <button class="presetTri" type="button" data-preset="C" aria-label="Preset C">
-    <svg class="triSvg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-      <polygon class="triPoly" points="50,8 92,88 8,88"></polygon>
-    </svg>
-  </button>
-
-  <button class="presetTri" type="button" data-preset="D" aria-label="Preset D">
-    <svg class="triSvg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-      <polygon class="triPoly" points="50,8 92,88 8,88"></polygon>
-    </svg>
-  </button>
-</div>
-
+    <div id="presetDock" class="presetDock" aria-label="Presets do fundo">
+      <button class="presetTri is-active" type="button" data-preset="A" aria-label="Preset A" data-tip="Preset A: alterna o fundo Hydra (triângulo A)."></button>
+      <button class="presetTri" type="button" data-preset="B" aria-label="Preset B" data-tip="Preset B: alterna o fundo Hydra (triângulo B)."></button>
+      <button class="presetTri" type="button" data-preset="C" aria-label="Preset C" data-tip="Preset C: alterna o fundo Hydra (triângulo C)."></button>
+      <button class="presetTri" type="button" data-preset="D" aria-label="Preset D" data-tip="Preset D: alterna o fundo Hydra (triângulo D)."></button>
+    </div>
 
     <!-- Botões inferiores (centralizados) -->
     <div class="fabWrap" aria-label="Ações">
