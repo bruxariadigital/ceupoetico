@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — Céu Poético</title>
+  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./admin.css" />
+</head>
+<body>
+  <main class="adminWrap">
+    <header class="adminHead">
+      <h1 class="adminTitle">Admin — Mural (curadoria)</h1>
+      <button id="logoutBtn" class="btn" type="button" hidden>Sair</button>
+    </header>
+
+    <section id="authBox" class="card card--aero adminCard">
+      <h2 class="title aeroTitle">Login</h2>
+      <p class="subtitle">Acesso por e-mail/senha (Supabase Auth).</p>
+
+      <form id="loginForm" class="adminForm">
+        <label class="label" for="email">E-mail</label>
+        <input id="email" class="adminInput" type="email" autocomplete="email" required />
+
+        <label class="label" for="password">Senha</label>
+        <input id="password" class="adminInput" type="password" autocomplete="current-password" required />
+
+        <div class="row">
+          <button id="loginBtn" class="btn" type="submit">Entrar</button>
+          <button id="signupBtn" class="btn" type="button">Criar conta</button>
+          <button id="resetBtn" class="btn" type="button">Recuperar senha</button>
+        </div>
+
+        <p id="authStatus" class="status"></p>
+        <p class="adminHint">Dica: para “trancar” a curadoria, ative RLS e crie policies permitindo SELECT/DELETE apenas para seu e-mail (ver README).</p>
+      </form>
+    </section>
+
+    <section id="adminBox" class="card card--aero adminCard" hidden>
+      <div class="row">
+        <p class="subtitle">Entradas mais recentes primeiro.</p>
+        <button id="refreshBtn" class="btn" type="button">Atualizar</button>
+      </div>
+
+      <div id="list" class="adminList"></div>
+      <p id="listStatus" class="status"></p>
+    </section>
+  </main>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="./admin.js"></script>
+</body>
+</html>

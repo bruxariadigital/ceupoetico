@@ -511,7 +511,7 @@ input[type="file"]{
 
 /* =========================
    Preset Dock (triângulos)
-   - mais pra dentro e levemente mais baixo
+   - AERO: glass + stroke fino (igual bolhas) + sombra projetada
    ========================= */
 .presetDock{
   position: fixed;
@@ -530,46 +530,45 @@ input[type="file"]{
   100%{ transform: translateY(0px) rotate(-1deg); }
 }
 
+/* “respiração” só do glow (bem sutil) */
 @keyframes triGlowBreathe{
-  0%{
-    box-shadow:
-      0 18px 70px rgba(0,0,0,0.38),
-      0 0 18px rgba(90,220,255,0.16),
-      inset 0 1px 0 rgba(255,255,255,0.26);
-  }
-  50%{
-    box-shadow:
-      0 22px 86px rgba(0,0,0,0.44),
-      0 0 28px rgba(90,220,255,0.28),
-      inset 0 1px 0 rgba(255,255,255,0.30);
-  }
-  100%{
-    box-shadow:
-      0 18px 70px rgba(0,0,0,0.38),
-      0 0 18px rgba(90,220,255,0.16),
-      inset 0 1px 0 rgba(255,255,255,0.26);
-  }
+  0%{ opacity: .32; }
+  50%{ opacity: .62; }
+  100%{ opacity: .32; }
 }
 
 .presetTri{
+  position: relative;
   width: 46px;
   height: 46px;
   cursor: pointer;
 
-  border: 1px solid rgba(255,255,255,0.28);
+  /* base glass */
+  border: 1px solid rgba(255,255,255,0.18);
   background:
-    radial-gradient(120% 140% at 22% 0%, rgba(255,255,255,0.18), transparent 55%),
-    linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06));
-  backdrop-filter: blur(14px) saturate(170%);
-  -webkit-backdrop-filter: blur(14px) saturate(170%);
+    radial-gradient(120% 140% at 22% 0%, rgba(255,255,255,0.14), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05));
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
 
+  /* forma */
   clip-path: polygon(50% 8%, 92% 88%, 8% 88%);
 
+  /* sombra projetada (segue o recorte melhor que box-shadow) */
+  filter:
+    drop-shadow(0 18px 34px rgba(0,0,0,0.55))
+    drop-shadow(0 0 16px rgba(90,220,255,0.10));
+
+  /* profundidade interna */
   box-shadow:
-    0 18px 65px rgba(0,0,0,0.36),
-    inset 0 1px 0 rgba(255,255,255,0.26),
-    0 0 0 1px rgba(255,255,255,0.06);
-  transition: transform .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease;
+    inset 0 1px 0 rgba(255,255,255,0.18);
+
+  transition:
+    transform .18s ease,
+    background .18s ease,
+    border-color .18s ease,
+    filter .22s ease;
+
   animation: triFloat 5.6s ease-in-out infinite;
 }
 
@@ -577,62 +576,73 @@ input[type="file"]{
 .presetTri:nth-child(3){ animation-duration: 5.2s; animation-delay: -2.1s; }
 .presetTri:nth-child(4){ animation-duration: 6.9s; animation-delay: -0.8s; }
 
-.presetTri:hover{
-  background:
-    radial-gradient(120% 140% at 22% 0%, rgba(255,255,255,0.22), transparent 55%),
-    linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.08));
-  border-color: rgba(255,255,255,0.46);
-  transform: translateY(-1px);
-  box-shadow:
-    0 22px 86px rgba(0,0,0,0.44),
-    inset 0 1px 0 rgba(255,255,255,0.34),
-    0 0 24px var(--glow2);
+/* SVG overlay: stroke REAL (não depende do clip-path) */
+.triSvg{
+  position:absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events:none;
 }
 
-.presetTri{
-  width: 46px;
-  height: 46px;
-  cursor: pointer;
+/* fill bem transparente + stroke off-white */
+.triPoly{
+  fill: rgba(255,255,255,0.035); /* aero */
+  stroke: rgba(243,241,234,0.42); /* off-white */
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 10px rgba(90,220,255,0.12));
+}
 
-  border: 1px solid rgba(255,255,255,0.28);
+/* halo suave atrás (não “grita”, só garante visibilidade) */
+.presetTri::after{
+  content:"";
+  position:absolute;
+  inset: -10px;
+  clip-path: polygon(50% 8%, 92% 88%, 8% 88%);
+  background: radial-gradient(circle at 50% 40%, rgba(90,220,255,0.22), transparent 60%);
+  filter: blur(10px);
+  opacity: .32;
+  animation: triGlowBreathe 4.6s ease-in-out infinite;
+  pointer-events:none;
+}
+
+.presetTri:hover{
+  border-color: rgba(255,255,255,0.28);
   background:
     radial-gradient(120% 140% at 22% 0%, rgba(255,255,255,0.18), transparent 55%),
-    linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06));
+    linear-gradient(180deg, rgba(255,255,255,0.13), rgba(255,255,255,0.06));
+  transform: translateY(-1px);
+  filter:
+    drop-shadow(0 22px 42px rgba(0,0,0,0.62))
+    drop-shadow(0 0 18px rgba(90,220,255,0.16));
+}
 
-  backdrop-filter: blur(14px) saturate(170%);
-  -webkit-backdrop-filter: blur(14px) saturate(170%);
-
-  clip-path: polygon(50% 8%, 92% 88%, 8% 88%);
-
-  /* 🔥 AGORA SIM: sombra + glow sempre visíveis */
-  box-shadow:
-    0 18px 70px rgba(0,0,0,0.38),
-    0 0 18px rgba(90,220,255,0.18),
-    inset 0 1px 0 rgba(255,255,255,0.26);
-
-  transition:
-    transform .18s ease,
-    background .18s ease,
-    border-color .18s ease,
-    box-shadow .22s ease;
-
-  /* movimento + respiração do glow */
-  animation:
-    triFloat 5.6s ease-in-out infinite,
-    triGlowBreathe 4.8s ease-in-out infinite;
+.presetTri:hover .triPoly{
+  fill: rgba(255,255,255,0.06);
+  stroke: rgba(243,241,234,0.60);
+  filter: drop-shadow(0 0 12px rgba(90,220,255,0.18));
 }
 
 .presetTri.is-active{
-  border-color: rgba(255,255,255,0.70);
-  box-shadow:
-    0 28px 110px rgba(0,0,0,0.52),
-    0 0 46px rgba(90,220,255,0.55),
-    inset 0 1px 0 rgba(255,255,255,0.50);
+  border-color: rgba(255,255,255,0.34);
+  filter:
+    drop-shadow(0 24px 52px rgba(0,0,0,0.68))
+    drop-shadow(0 0 26px rgba(90,220,255,0.28));
 }
+
+.presetTri.is-active .triPoly{
+  fill: rgba(255,255,255,0.08);
+  stroke: rgba(243,241,234,0.78);
+  filter: drop-shadow(0 0 16px rgba(90,220,255,0.28));
+}
+
+.presetTri.is-active::after{ opacity: .58; }
 
 @media (max-width: 640px){
   .presetDock{ left: 16px; top: 55%; gap: 10px; }
   .presetTri{ width: 42px; height: 42px; }
+  .presetTri::after{ inset: -9px; filter: blur(9px); }
 }
 
 /* =========================
@@ -732,31 +742,20 @@ input[type="file"]{
 .resize-handle--se{ right:-2px; bottom:-2px; cursor:se-resize; }
 .resize-handle--sw{ left:-2px; bottom:-2px; cursor:sw-resize; }
 
+/* icon-only FAB (som) */
+.fab--icon{
+  padding: 12px 14px;
+  min-width: 44px;
+  display: grid;
+  place-items: center;
+}
+.fab--icon span{ font-size: 16px; line-height: 1; }
+@media (max-width: 640px){
+  .fab--icon{ padding: 12px 14px; min-width: 44px; }
+}
 
-/* =========================
-   Tooltip (delay controlado no JS)
-   ========================= */
-.uiTip{
-  position: fixed;
-  z-index: 9999;
-  max-width: min(280px, 86vw);
-  padding: 10px 12px;
-  border-radius: 12px;
-
-  background:
-    radial-gradient(120% 140% at 18% 0%, rgba(255,255,255,0.14), transparent 55%),
-    linear-gradient(180deg, rgba(10,10,18,0.62), rgba(10,10,18,0.50));
-  border: 1px solid rgba(255,255,255,0.18);
-  backdrop-filter: blur(16px) saturate(145%);
-  -webkit-backdrop-filter: blur(16px) saturate(145%);
-  box-shadow:
-    0 22px 80px rgba(0,0,0,0.45),
-    inset 0 1px 0 rgba(255,255,255,0.16);
-
-  color: rgba(255,255,255,0.92);
-  font-size: 12px;
-  line-height: 1.35;
-  letter-spacing: 0.18px;
-  pointer-events: none;
-  user-select: none;
+/* mini editor: botão run 15% menor */
+.hydra-mini__actions #runHydra.btn--run{
+  padding: 8.5px 11.9px;
+  font-size: 12.75px;
 }

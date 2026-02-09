@@ -13,8 +13,8 @@
 <body class="sky">
   <header class="topbar">
     <nav class="nav" aria-label="Menu">
-      <a href="./index.html" class="active" data-tip="Voltar para o céu principal.">Início</a>
-      <a href="#" id="openAbout" data-tip="Abrir a poética do festival Potiguarias Visuais.">O que é ser potiguar?</a>
+      <a href="./index.html" class="active">Início</a>
+      <a href="#" id="openAbout">O que é ser potiguar?</a>
     </nav>
   </header>
 
@@ -25,10 +25,26 @@
 
     <!-- Triângulos / presets (A-B-C-D) -->
     <div id="presetDock" class="presetDock" aria-label="Presets do fundo">
-      <button class="presetTri is-active" type="button" data-preset="A" aria-label="Preset A" data-tip="Preset A: alterna o fundo Hydra (triângulo A)."></button>
-      <button class="presetTri" type="button" data-preset="B" aria-label="Preset B" data-tip="Preset B: alterna o fundo Hydra (triângulo B)."></button>
-      <button class="presetTri" type="button" data-preset="C" aria-label="Preset C" data-tip="Preset C: alterna o fundo Hydra (triângulo C)."></button>
-      <button class="presetTri" type="button" data-preset="D" aria-label="Preset D" data-tip="Preset D: alterna o fundo Hydra (triângulo D)."></button>
+      <button class="presetTri is-active" type="button" data-preset="A" aria-label="Preset A">
+        <svg class="triSvg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+          <polygon class="triPoly" points="50,8 92,88 8,88"></polygon>
+        </svg>
+      </button>
+      <button class="presetTri" type="button" data-preset="B" aria-label="Preset B">
+        <svg class="triSvg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+          <polygon class="triPoly" points="50,8 92,88 8,88"></polygon>
+        </svg>
+      </button>
+      <button class="presetTri" type="button" data-preset="C" aria-label="Preset C">
+        <svg class="triSvg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+          <polygon class="triPoly" points="50,8 92,88 8,88"></polygon>
+        </svg>
+      </button>
+      <button class="presetTri" type="button" data-preset="D" aria-label="Preset D">
+        <svg class="triSvg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+          <polygon class="triPoly" points="50,8 92,88 8,88"></polygon>
+        </svg>
+      </button>
     </div>
 
     <!-- Botões inferiores (centralizados) -->
@@ -39,6 +55,9 @@
 
       <button id="openHydraMini" class="fab" type="button">
         Crie
+      </button>
+      <button id="toggleSound" class="fab fab--icon" type="button" aria-pressed="false" aria-label="Ativar som (Strudel)">
+        <span aria-hidden="true">🔇</span>
       </button>
     </div>
 
@@ -52,8 +71,8 @@
       <textarea id="hydraCode" spellcheck="false"></textarea>
 
       <div class="hydra-mini__actions">
-        <a id="resetHydra" class="hydra-reset" href="#">resetar</a>
-        <button id="runHydra" class="btn" type="button">clique-me para rodar o código</button>
+        <button id="runHydra" class="btn btn--run" type="button">clique-me para rodar o código</button>
+        <a id="resetHydra" class="hydra-reset" href="#">Reset</a>
       </div>
     </div>
   </main>
@@ -127,6 +146,7 @@
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://unpkg.com/hydra-synth"></script>
+  <script defer src="https://unpkg.com/@strudel/web@1.3.0"></script>
   <script defer src="./app.js"></script>
 </body>
 </html>

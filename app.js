@@ -250,7 +250,9 @@ a.show()
   let hydraInstance = null;
 
   window.CEU_HOVER = 0;
-  window.CEU_HOVER_FX = { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
+
+  // quando definido (número), trava o efeito aleatório até outra bolha ser “selecionada”
+  window.CEU_LOCKED_H = null;
 
   function fitHydraCanvasToScreen() {
     const canvas = document.getElementById("hydra-canvas");
@@ -303,16 +305,15 @@ a.show()
 
     const fx = state.presets[presetId]?.fx || defaultFx();
 
-    // hover “aleatório por bolha”: um boost (h) + deltas por parâmetro
-    const h = window.CEU_HOVER || 0;
-    const hf = window.CEU_HOVER_FX || { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
+    // suaviza “hover-hydra” (menos colorama / menos saturação)
+    const h = (typeof window.CEU_LOCKED_H === "number") ? window.CEU_LOCKED_H : (window.CEU_HOVER || 0);
 
     try {
       src(srcBuf)
-        .contrast(() => fx.contrast + (h * 0.12) + (hf.contrast || 0))
-        .saturate(() => fx.saturate + (h * 0.18) + (hf.saturate || 0))
-        .brightness(() => fx.brightness + (h * 0.05) + (hf.brightness || 0))
-        .colorama(() => fx.colorama + (h * 0.12) + (hf.colorama || 0))
+        .contrast(() => fx.contrast + h * 0.14)
+        .saturate(() => fx.saturate + h * 0.22)
+        .brightness(() => fx.brightness + h * 0.05)
+        .colorama(() => fx.colorama + h * 0.16)
         .out(outBuf);
 
       if (typeof window.render === "function") window.render(outBuf);
@@ -465,19 +466,6 @@ a.show()
     return options[(h >>> 0) % options.length];
   }
 
-  function randomHoverFx() {
-    // deltas pequenos e elegantes (sem estourar saturação/colorama)
-    // cada bolha/hover “vira” um mini-preset temporário
-    return {
-      contrast:   (Math.random() * 0.20 - 0.08),   // -0.08 .. +0.12
-      saturate:   (Math.random() * 0.30 - 0.10),   // -0.10 .. +0.20
-      brightness: (Math.random() * 0.10 - 0.05),   // -0.05 .. +0.05
-      colorama:   (Math.random() * 0.18 - 0.06)    // -0.06 .. +0.12
-    };
-  }
-
-
-
   function openViewer(viewerEls, post) {
     const { viewer, viewerImg, viewerText, viewerMeta } = viewerEls;
     const mediaType = post.media_type || "";
@@ -591,9 +579,6 @@ a.show()
     el.className = "seed";
     el.type = "button";
 
-    // tooltip: descreve a função da bolha
-    el.setAttribute("data-tip", "Marca no céu: passe o mouse para ver o efeito; clique para abrir.");
-
     const x = 6 + Math.random() * 88;
     const y = 12 + Math.random() * 76;
     el.style.left = x.toFixed(2) + "%";
@@ -648,6 +633,40 @@ a.show()
     // drag (desktop + mobile)
     enableSeedDrag(el, garden);
 
+
+    // long-press (>= 1s) para “travar” o efeito aleatório desta bolha
+    // fica ativo até outra bolha ser travada
+    let lockT = null;
+    const clearLockTimer = () => { if (lockT) { clearTimeout(lockT); lockT = null; } };
+
+    el.addEventListener("pointerdown", (e) => {
+      // não trava se começou dentro da bubble (texto/scroll)
+      if (e.target?.closest?.(".bubble")) return;
+
+      clearLockTimer();
+      lockT = setTimeout(() => {
+        // se estava arrastando, não trava
+        if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
+
+        // garante que existe um valor aleatório “atual” para esta bolha
+        if (typeof el._lastHoverH !== "number") {
+          el._lastHoverH = isHoverDesktop()
+            ? (0.28 + Math.random() * 0.45)
+            : (0.22 + Math.random() * 0.28);
+        }
+
+        window.CEU_LOCKED_H = el._lastHoverH;
+        window.CEU_HOVER = 0; // não conflitar com hover temporário
+
+        openSeedBubble(el);
+        applyPresetFxToDisplay(state.activePreset, state);
+      }, 1000);
+    });
+
+    el.addEventListener("pointerup", clearLockTimer);
+    el.addEventListener("pointercancel", clearLockTimer);
+    el.addEventListener("pointerleave", clearLockTimer);
+
     // hover (somente desktop): abre bolha + hover FX
     if (isHoverDesktop()) {
       let closeT = null;
@@ -656,15 +675,18 @@ a.show()
         clearTimeout(closeT);
         openSeedBubble(el);
 
-        window.CEU_HOVER = 0.22 + Math.random() * 0.42;
-        window.CEU_HOVER_FX = randomHoverFx();
-        applyPresetFxToDisplay(state.activePreset, state);
+        if (typeof window.CEU_LOCKED_H !== "number") {
+          window.CEU_HOVER = 0.28 + Math.random() * 0.45;
+          el._lastHoverH = window.CEU_HOVER;
+          applyPresetFxToDisplay(state.activePreset, state);
+        }
       });
 
       el.addEventListener("pointerleave", () => {
-        window.CEU_HOVER = 0;
-        window.CEU_HOVER_FX = { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
-        applyPresetFxToDisplay(state.activePreset, state);
+        if (typeof window.CEU_LOCKED_H !== "number") {
+          window.CEU_HOVER = 0;
+          applyPresetFxToDisplay(state.activePreset, state);
+        }
 
         closeT = setTimeout(() => {
           el.classList.remove("is-open");
@@ -677,15 +699,17 @@ a.show()
       const touchBoost = () => {
         // evita ativar se estava arrastando
         if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
-        window.CEU_HOVER = 0.18 + Math.random() * 0.28;
-        window.CEU_HOVER_FX = randomHoverFx();
+        if (typeof window.CEU_LOCKED_H === "number") return;
+        window.CEU_HOVER = 0.22 + Math.random() * 0.28;
+        el._lastHoverH = window.CEU_HOVER;
         applyPresetFxToDisplay(state.activePreset, state);
       };
 
       const touchReset = () => {
-        window.CEU_HOVER = 0;
-        window.CEU_HOVER_FX = { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
-        applyPresetFxToDisplay(state.activePreset, state);
+        if (typeof window.CEU_LOCKED_H !== "number") {
+          window.CEU_HOVER = 0;
+          applyPresetFxToDisplay(state.activePreset, state);
+        }
       };
 
       // pointer* funciona tanto em iOS/Android modernos quanto desktop
@@ -985,6 +1009,7 @@ a.show()
 
         miniApi?.syncEditorFromState?.();
         runActivePreset(state);
+        if (soundOn) playSoundForPreset(id);
         setActiveUI();
       });
     });
@@ -1025,6 +1050,65 @@ a.show()
     });
   }
 
+  
+  // =====================================================
+  // STRUDEL (som) — muted por padrão
+  // =====================================================
+  let soundOn = false;
+
+  function strudelAvailable() {
+    // @strudel/web expõe initStrudel + setcps + hush + note/stack/etc.
+    return typeof window.initStrudel === "function" && typeof window.hush === "function";
+  }
+
+  async function ensureStrudel() {
+    if (!strudelAvailable()) {
+      alert("Strudel ainda não carregou. Confira o <script> do @strudel/web no index.html.");
+      return false;
+    }
+    try {
+      // precisa de gesto do usuário; chamamos dentro do clique do botão
+      await window.initStrudel();
+      // tempo bem suave
+      if (typeof window.setcps === "function") window.setcps(0.55);
+      return true;
+    } catch (e) {
+      console.warn("Strudel init falhou:", e);
+      alert("Não consegui iniciar o som neste navegador. (WebAudio bloqueado?)");
+      return false;
+    }
+  }
+
+  function playSoundForPreset(presetId) {
+    if (!strudelAvailable()) return;
+
+    // para não empilhar sons
+    try { window.hush(); } catch {}
+
+    const id = String(presetId || "A").toUpperCase();
+
+    // patterns simples (synth) — pode ajustar depois
+    try {
+      if (id === "A") {
+        window.note("<c4 e4 g4>(3,8)").s("sine").gain(0.18).room(0.2).play();
+      } else if (id === "B") {
+        window.note("c3*8").s("sine").gain(0.12).cutoff(900).play();
+      } else if (id === "C") {
+        window.note("<c5 a4 f4 e4>(5,8)").s("sine").gain(0.14).delay(0.25).play();
+      } else if (id === "D") {
+        window.note("<c2 c3 c4>(3,8)").s("sine").gain(0.16).room(0.35).speed(0.75).play();
+      } else {
+        window.note("c4*8").s("sine").gain(0.12).play();
+      }
+    } catch (e) {
+      console.warn("Strudel play falhou:", e);
+    }
+  }
+
+  function stopSound() {
+    try { window.hush(); } catch {}
+  }
+
   // =====================================================
   // START
   // =====================================================
@@ -1036,6 +1120,7 @@ a.show()
 
     const composer = document.getElementById("composer");
     const openComposer = document.getElementById("openComposer");
+    const toggleSound = document.getElementById("toggleSound");
     const closeComposer = document.getElementById("closeComposer");
 
     const form = document.getElementById("muralForm");
@@ -1050,73 +1135,6 @@ a.show()
     const viewerText = document.getElementById("viewerText");
     const viewerMeta = document.getElementById("viewerMeta");
     const viewerEls = { viewer, viewerImg, viewerText, viewerMeta };
-
-    // =====================================================
-    // TOOLTIP (1s delay) — usa data-tip em qualquer elemento
-    // =====================================================
-    (function initTooltips(){
-      const tip = document.createElement("div");
-      tip.className = "uiTip";
-      tip.setAttribute("role", "tooltip");
-      tip.style.display = "none";
-      document.body.appendChild(tip);
-
-      let t = null;
-      let currentEl = null;
-
-      const show = (el) => {
-        const text = el?.getAttribute?.("data-tip");
-        if (!text) return;
-        tip.textContent = text;
-        tip.style.display = "block";
-        tip.style.opacity = "1";
-
-        const r = el.getBoundingClientRect();
-        const margin = 10;
-
-        const w = tip.offsetWidth;
-        const h = tip.offsetHeight;
-
-        let left = r.left + (r.width/2) - (w/2);
-        left = clamp(left, margin, window.innerWidth - w - margin);
-
-        let top = r.top - h - 10;
-        if (top < margin) top = r.bottom + 10;
-
-        tip.style.left = `${left}px`;
-        tip.style.top = `${top}px`;
-      };
-
-      const hide = () => {
-        clearTimeout(t);
-        t = null;
-        currentEl = null;
-        tip.style.display = "none";
-      };
-
-      document.addEventListener("pointerenter", (e) => {
-        const el = e.target?.closest?.("[data-tip]");
-        if (!el) return;
-        if (el.matches?.("[disabled]")) return;
-
-        currentEl = el;
-        clearTimeout(t);
-        t = setTimeout(() => {
-          if (currentEl === el) show(el);
-        }, 1000);
-      }, true);
-
-      document.addEventListener("pointerleave", (e) => {
-        const el = e.target?.closest?.("[data-tip]");
-        if (!el) return;
-        hide();
-      }, true);
-
-      window.addEventListener("scroll", hide, true);
-      window.addEventListener("resize", hide);
-    })();
-
-
 
     // Fecha bolhas ao clicar em qualquer lugar fora
     document.addEventListener("pointerdown", (e) => {
@@ -1152,6 +1170,26 @@ a.show()
 
     // Preset dock (A/B/C/D)
     setupPresetDock(state, miniApi);
+
+    // Som (Strudel) — botão mute/unmute
+    toggleSound?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (!soundOn) {
+        const ok = await ensureStrudel();
+        if (!ok) return;
+        soundOn = true;
+        toggleSound.setAttribute("aria-pressed", "true");
+        toggleSound.innerHTML = '<span aria-hidden="true">🔈</span>';
+        playSoundForPreset(state.activePreset);
+      } else {
+        soundOn = false;
+        toggleSound.setAttribute("aria-pressed", "false");
+        toggleSound.innerHTML = '<span aria-hidden="true">🔇</span>';
+        stopSound();
+      }
+    });
 
     // abrir composer
     openComposer?.addEventListener("click", () => {
