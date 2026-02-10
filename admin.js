@@ -1,13 +1,6 @@
 (() => {
   "use strict";
 
-  // =====================================================
-  // Gate simples (não é segurança forte)
-  // Troque a senha abaixo antes de publicar.
-  // =====================================================
-  const BASIC_ADMIN_PASSWORD = "mude-esta-senha";
-  const BASIC_ADMIN_KEY = "ceu_admin_gate_ok";
-
   const SUPABASE_URL = "https://nroguehkffzgerirbdcn.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_87bQ1cjlVd6gw1Ugh45eYg_P8mTW2ZJ";
 
@@ -229,18 +222,6 @@
   }
 
   window.addEventListener("DOMContentLoaded", async () => {
-    // gate básico antes de mostrar qualquer coisa
-    const ok = localStorage.getItem(BASIC_ADMIN_KEY) === "1";
-    if (!ok) {
-      const entered = prompt("Senha do Admin:");
-      if (entered !== BASIC_ADMIN_PASSWORD) {
-        alert("Acesso negado.");
-        try { window.location.href = "./index.html"; } catch {}
-        return;
-      }
-      localStorage.setItem(BASIC_ADMIN_KEY, "1");
-    }
-
     if (!sb) {
       setStatus("Supabase não carregou. Confira o <script> no admin.html.");
       return;
