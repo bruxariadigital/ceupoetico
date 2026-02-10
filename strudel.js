@@ -1,74 +1,42 @@
-/*
-  Strudel bridge (no ESM):
-  - Uses the UMD build loaded via:
-      <script src="https://unpkg.com/@strudel/web@1.0.3"></script>
-  - Captures Strudel globals (note, s, setcps, hush, etc.) into window.CEU_STRUDEL
-  - IMPORTANT: Never rely on window.hush at call sites, to avoid collisions with Hydra's hush.
-*/
+// Strudel loader (ESM)
+// - Evita colisão com Hydra (NUNCA expõe window.hush)
+// - Fornece uma API mínima via window.CEU_STRUDEL
 
-(function () {
-  'use strict';
+import * as Web from 'https://esm.sh/@strudel/web@1.0.3';
 
-  function pickGlobal(name) {
-    try {
-      const g = (typeof globalThis !== 'undefined') ? globalThis : window;
-      return g && g[name];
-    } catch {
-      return undefined;
-    }
-  }
+let _ready = false;
+let _api = null;
 
-  function snapshotStrudelGlobals() {
-    // With @strudel/web UMD, these live on globalThis after initStrudel
-    return {
-      initStrudel: pickGlobal('initStrudel'),
-      note: pickGlobal('note'),
-      n: pickGlobal('n'),
-      s: pickGlobal('s'),
-      stack: pickGlobal('stack'),
-      setcps: pickGlobal('setcps'),
-      setcpm: pickGlobal('setcpm'),
-      hush: pickGlobal('hush'),
-    };
-  }
+function pickFn(name) {
+  const v = Web?.[name];
+  if (typeof v === 'function') return v;
+  const g = globalThis?.[name];
+  if (typeof g === 'function') return g;
+  return null;
+}
 
-  window.CEU_STRUDEL = {
-    ready: false,
-    _api: snapshotStrudelGlobals(),
+async function init() {
+  if (_ready) return true;
+  if (typeof Web?.initStrudel !== 'function') return false;
+  await Web.initStrudel();
 
-    async init() {
-      const api0 = snapshotStrudelGlobals();
-      if (typeof api0.initStrudel !== 'function') {
-        console.warn('[CEU_STRUDEL] initStrudel não encontrado. Verifique se @strudel/web carregou.');
-        return false;
-      }
+  // Funções que usamos no app. Dependendo do bundle, elas podem estar nos exports
+  // ou terem sido registradas em globalThis pelo Strudel.
+  const s = pickFn('s');
+  const n = pickFn('n');
+  const setcps = pickFn('setcps');
 
-      // initStrudel must run after a user gesture
-      await api0.initStrudel();
+  if (!s) console.warn('[CEU_STRUDEL] Função s() não encontrada após initStrudel()');
+  if (!n) console.warn('[CEU_STRUDEL] Função n() não encontrada após initStrudel()');
 
-      // refresh snapshot after init
-      const api = snapshotStrudelGlobals();
-      window.CEU_STRUDEL._api = api;
-      window.CEU_STRUDEL.ready = true;
+  _api = { s, n, setcps };
+  _ready = true;
+  return true;
+}
 
-      // safe default tempo
-      try { if (typeof api.setcps === 'function') api.setcps(1); } catch {}
-      return true;
-    },
-
-    // Accessors
-    get note() { return window.CEU_STRUDEL._api.note || window.CEU_STRUDEL._api.n; },
-    get s() { return window.CEU_STRUDEL._api.s; },
-    get stack() { return window.CEU_STRUDEL._api.stack; },
-    get setcps() { return window.CEU_STRUDEL._api.setcps; },
-    get setcpm() { return window.CEU_STRUDEL._api.setcpm; },
-
-    // Stop all patterns — uses captured Strudel hush (never call window.hush elsewhere)
-    stopAll() {
-      try {
-        const h = window.CEU_STRUDEL._api.hush;
-        if (typeof h === 'function') h();
-      } catch {}
-    },
-  };
-})();
+// Namespace controlado (sem hush/note/globals)
+window.CEU_STRUDEL = {
+  init,
+  get ready() { return _ready; },
+  get api() { return _api; },
+};

@@ -37,15 +37,13 @@
         Plantar uma semente
       </button>
 
-      <button id="openHydraMini" class="fab" type="button">
-        Crie
-      </button>
-
       <button id="toggleSound" class="fab fab--sound" type="button" aria-pressed="false">
         Som: off
       </button>
 
-      
+      <button id="openHydraMini" class="fab" type="button">
+        Crie
+      </button>
     </div>
 
     <!-- Mini editor -->
@@ -58,9 +56,8 @@
       <textarea id="hydraCode" spellcheck="false"></textarea>
 
       <div class="hydra-mini__actions">
-        <a id="resetHydra" class="hydra-reset" href="#">Reset códigos</a>
-
         <button id="runHydra" class="btn btn--run" type="button">clique-me para rodar o código</button>
+        <a id="resetHydra" class="hydra-reset" href="#">Reset códigos</a>
       </div>
     </div>
   </main>
@@ -152,9 +149,7 @@
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://unpkg.com/hydra-synth"></script>
-  <!-- Strudel: UMD build (globals) to avoid ESM export mismatch on some CDNs -->
-  <script defer src="https://unpkg.com/@strudel/web@1.0.3"></script>
-  <script defer src="./strudel.js"></script>
+  <script type="module" src="./strudel.js"></script>
   <script defer src="./app.js"></script>
 </body>
 </html>
