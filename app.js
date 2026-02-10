@@ -302,8 +302,8 @@ a.show()
     enabled: false,
     triangleId: "A",
     lockedSeedId: null,
-    previewSeedId: null,
     lockedVariantKey: null,
+    previewSeedId: null,
     previewVariantKey: null,
     basePattern: null,
     overlayPattern: null,
@@ -311,14 +311,17 @@ a.show()
   };
 
   function strudelAvailable() {
-    return !!window.CEU_STRUDEL && typeof window.CEU_STRUDEL.init === "function";
+    return !!window.CEU_STRUDEL && typeof window.CEU_STRUDEL.initStrudel === "function";
   }
 
   async function ensureStrudelReady() {
     if (STRUDEL.ready) return true;
     if (!strudelAvailable()) return false;
     try {
-      await window.CEU_STRUDEL.init();
+      // Strudel precisa iniciar o AudioContext a partir de um gesto do usuário.
+      await window.CEU_STRUDEL.initStrudel();
+      // bpm/cps padrão (evita silêncio por cps=0)
+      try { window.CEU_STRUDEL.setcps?.(1); } catch {}
       STRUDEL.ready = true;
       return true;
     } catch (e) {
@@ -334,41 +337,30 @@ a.show()
       h ^= str.charCodeAt(i);
       h = Math.imul(h, 16777619);
     }
-
-  function fract01(x){ return x - Math.floor(x); }
     return ((h >>> 0) % 10000) / 10000;
   }
 
   function buildTrianglePattern(triId) {
     const S = window.CEU_STRUDEL;
-    // melodias simples (padrões curtos), com reverb leve para "colar" no ambiente
-    if (triId === "A") return S.note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85);
-    if (triId === "B") return S.note("<d4 f4 a4 c5>(3,8)").s("saw").dec(.22).room(.38).gain(.78);
-    if (triId === "C") return S.note("<e4 g4 b4 d5>(3,8)").s("gm_lead_1_square").dec(.20).room(.32).gain(.80);
-    return S.note("<a3 c4 e4 g4>(3,8)").s("gm_electric_piano_1").dec(.24).room(.36).gain(.75);
+    // instrumentos bem compatíveis (evita silêncio por soundfont ausente)
+    if (triId === "A") return S.note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.22).room(.55).gain(.85);
+    if (triId === "B") return S.note("<d4 f4 a4 c5>(3,8)").s("saw").dec(.20).room(.58).gain(.78);
+    if (triId === "C") return S.note("<e4 g4 b4 d5>(3,8)").s("square").dec(.18).room(.52).gain(.80);
+    return S.note("<a3 c4 e4 g4>(3,8)").s("triangle").dec(.21).room(.56).gain(.75);
   }
 
   function buildSeedLayer(seedId, mode, variantKey) {
     const S = window.CEU_STRUDEL;
-    const v = (typeof variantKey === "number" ? variantKey : 0);
-    const r = fract01(hash01(seedId) + v * 0.971);
+    const r = hash01(`${seedId}::${variantKey || "v0"}`);
     const scale = r < 0.33 ? "C:minor" : (r < 0.66 ? "D:minor" : "A:minor");
-    const inst = r < 0.25 ? "hh" : (r < 0.5 ? "gm_pad_1_new_age" : (r < 0.75 ? "gm_bass_2_finger" : "bd"));
+    const inst = r < 0.5 ? "hh" : "bd";
     const dense = r < 0.5 ? 8 : 16;
-    const g = mode === "preview" ? 0.55 : 0.70;
-    const rm = mode === "preview" ? 0.55 : 0.70; // mais cauda no lock
 
-    // camada: ou percussão curta ou notas tonais
-    if (inst === "hh" || inst === "bd") {
-      return S.s(`${inst}*${dense}`)
-        .gain(g)
-        .room(rm);
-    }
+    const g = mode === "preview" ? 0.52 : 0.70;
+    const rm = mode === "preview" ? 0.72 : 0.86; // cauda mais longa no lock (transição suave)
 
-    return S.n("<0 2 4 7>*4")
-      .scale(scale)
-      .s(inst)
-      .dec(.18)
+    // camada percussiva simples (sempre toca)
+    return S.s(`${inst}*${dense}`)
       .gain(g)
       .room(rm);
   }
@@ -388,43 +380,37 @@ a.show()
     stopStrudelAll();
     STRUDEL.triangleId = triId;
     STRUDEL.lockedSeedId = lockedSeedId || null;
-    if (!STRUDEL.lockedSeedId) STRUDEL.lockedVariantKey = null;
-    if (typeof lockedVariantKey === "number") STRUDEL.lockedVariantKey = lockedVariantKey;
+    STRUDEL.lockedVariantKey = lockedVariantKey || (STRUDEL.lockedSeedId ? (STRUDEL.lockedVariantKey || "v0") : null);
 
     const base = buildTrianglePattern(triId);
     STRUDEL.basePattern = base;
     base.play();
 
     if (STRUDEL.lockedSeedId) {
-      const layer = buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey);
+      const layer = buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey || "v0");
       STRUDEL.overlayPattern = layer;
       layer.play();
     }
   }
 
-  function previewSeedLayer(seedId) {
+  function previewSeedLayer(seedId, variantKey) {
     if (!STRUDEL.enabled) return;
     if (!window.CEU_STRUDEL) return;
     if (seedId === STRUDEL.lockedSeedId) return;
-    // mesmo seed pode gerar variações em hovers diferentes
-    if (seedId === STRUDEL.previewSeedId && STRUDEL.previewVariantKey != null) return;
 
-    try {
-      // prévia: toca uma camada e corta ao sair
-      if (STRUDEL.overlayPreview) {
-        // substitui sem acumular
-        window.CEU_STRUDEL.hush();
-        // reconstroi base + lock, depois preview
-        const base = buildTrianglePattern(STRUDEL.triangleId);
-        base.play();
-        if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey).play();
-      }
-    } catch {}
+    // evita recomputar se já é a mesma preview
+    if (seedId === STRUDEL.previewSeedId && variantKey === STRUDEL.previewVariantKey) return;
 
     STRUDEL.previewSeedId = seedId;
-    STRUDEL.previewVariantKey = Math.random();
-    STRUDEL.overlayPreview = buildSeedLayer(seedId, "preview", STRUDEL.previewVariantKey);
-    STRUDEL.overlayPreview.play();
+    STRUDEL.previewVariantKey = variantKey;
+
+    // prévia: reconstroi base + lock e toca a preview por cima
+    try { window.CEU_STRUDEL.hush(); } catch {}
+    try { buildTrianglePattern(STRUDEL.triangleId).play(); } catch {}
+    if (STRUDEL.lockedSeedId) {
+      try { buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey || "v0").play(); } catch {}
+    }
+    try { buildSeedLayer(seedId, "preview", variantKey || "pv0").play(); } catch {}
   }
 
   function clearPreviewSeedLayer() {
@@ -448,7 +434,7 @@ a.show()
       stopStrudelAll();
       const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
       base.play();
-      if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey).gain(0.0001).play();
+      if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001).play();
       setTimeout(() => {
         playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId, lockedVariantKey: STRUDEL.lockedVariantKey });
       }, FADE_MS);
@@ -457,7 +443,7 @@ a.show()
       try {
         const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
         base.play();
-        if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey).gain(0.0001).play();
+        if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001).play();
       } catch {}
       setTimeout(() => {
         stopStrudelAll();
@@ -475,30 +461,32 @@ a.show()
   //   - hover aplica FX randômico
   //   - click trava FX até outra bolha ou clique fora
   // =====================================================
-  function randomFxFromSeed(seedId) {
-    const r = hash01(String(seedId) + "::fx");
+  function randomFxFromSeed(seedId, variantKey) {
+    // determinístico dentro de uma "variantKey" (que muda a cada hover/click)
+    const r = hash01(`${seedId}::${variantKey || "v0"}::fx`);
     const pick = Math.floor(r * 8);
     const a = 0.15 + r * 0.55;
     const b = 1.0 + r * 5.0;
-    return {
-      pick,
-      a,
-      b,
-    };
+    return { pick, a, b };
   }
 
   function applyRandomSeedFx(node, fxObj) {
     if (!fxObj) return node;
     const p = fxObj.pick % 8;
+    const a = fxObj.a;
+    const b = fxObj.b;
+
+    // IMPORTANT: nunca auto-modular usando o próprio "node" como modulador
+    // (isso pode gerar recursão no GLSL e estourar call stack)
     try {
-      if (p === 0) return node.invert(fxObj.a);
-      if (p === 1) return node.posterize(Math.floor(2 + fxObj.b), 0.6);
-      if (p === 2) return node.kaleid(Math.floor(2 + fxObj.b)).rotate(() => fxObj.a * 0.35);
-      if (p === 3) return node.pixelate(18 + Math.floor(fxObj.b * 12), 10 + Math.floor(fxObj.b * 6));
-      if (p === 4) return node.scrollX(() => fxObj.a * 0.02, () => fxObj.a * 0.01).scrollY(() => -fxObj.a * 0.02, () => fxObj.a * 0.01);
-      if (p === 5) return node.modulateRotate(osc(3,0.12,0.2), () => fxObj.a * 0.35).contrast(1.0 + fxObj.a * 0.35);
-      if (p === 6) return node.modulateScale(osc(2,0.08,0.15), () => 0.8 + fxObj.a * 0.8, () => fxObj.a * 0.15);
-      return node.luma(() => 0.25 + fxObj.a * 0.55, 0.15);
+      if (p === 0) return node.invert(a);
+      if (p === 1) return node.posterize(Math.floor(2 + b), 0.6);
+      if (p === 2) return node.kaleid(Math.floor(2 + b)).rotate(() => a * 0.35);
+      if (p === 3) return node.pixelate(14 + Math.floor(b * 10), 8 + Math.floor(b * 6));
+      if (p === 4) return node.scrollX(() => a * 0.02, () => a * 0.01).scrollY(() => -a * 0.02, () => a * 0.01);
+      if (p === 5) return node.modulateRotate(osc(6 + b, 0.08, 0.9), () => a * 0.35).contrast(1.0 + a * 0.35);
+      if (p === 6) return node.modulateScale(osc(4 + b, 0.06, 0.6), () => 0.9 + a * 0.7, () => a * 0.12);
+      return node.luma(() => 0.25 + a * 0.55, 0.15);
     } catch {
       return node;
     }
@@ -515,7 +503,7 @@ a.show()
     // suaviza “hover-hydra” (menos colorama / menos saturação)
     const h = window.CEU_HOVER || 0;
 
-    const seedFx = window.CEU_PREVIEW_SEED_FX || window.CEU_LOCKED_SEED_FX || null; // {pick,a,b}
+    const seedFx = (window.CEU_PREVIEW_SEED_FX || window.CEU_LOCKED_SEED_FX || null); // {pick,a,b}
 
     try {
       let chain = src(srcBuf);
@@ -864,12 +852,16 @@ a.show()
         clearTimeout(closeT);
         openSeedBubble(el);
 
-        // preview strudel + fx randômico (não trava)
-        if (STRUDEL.enabled) previewSeedLayer(post.id);
+        // preview só se NÃO for a seed já travada
         if (STRUDEL.lockedSeedId !== post.id) {
-          window.CEU_PREVIEW_SEED_FX = randomFxFromSeed(post.id);
+          const vKey = `pv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+          STRUDEL.previewVariantKey = vKey;
+
+          window.CEU_PREVIEW_SEED_FX = randomFxFromSeed(post.id, vKey);
+          if (STRUDEL.enabled) previewSeedLayer(post.id, vKey);
         }
-        window.CEU_HOVER = 0.28 + Math.random() * 0.45;
+
+        window.CEU_HOVER = 0.26 + Math.random() * 0.42;
         applyPresetFxToDisplay(state.activePreset, state);
       });
 
@@ -877,6 +869,7 @@ a.show()
         clearPreviewSeedLayer();
         window.CEU_HOVER = 0;
         window.CEU_PREVIEW_SEED_FX = null;
+
         applyPresetFxToDisplay(state.activePreset, state);
 
         closeT = setTimeout(() => {
@@ -885,14 +878,18 @@ a.show()
         }, 180);
       });
     } else {
-      // touch: simula "hover" com pressionar/soltar
-      // (permite ver os efeitos no mobile sem depender de hover real)
+      // touch: "preview" ao pressionar; lock no tap
       const touchBoost = () => {
-        // evita ativar se estava arrastando
         if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
-        if (STRUDEL.enabled) previewSeedLayer(post.id);
-        if (STRUDEL.lockedSeedId !== post.id) window.CEU_PREVIEW_SEED_FX = randomFxFromSeed(post.id);
-        window.CEU_HOVER = 0.22 + Math.random() * 0.28;
+        if (STRUDEL.lockedSeedId === post.id) return;
+
+        const vKey = `pv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+        STRUDEL.previewVariantKey = vKey;
+
+        window.CEU_PREVIEW_SEED_FX = randomFxFromSeed(post.id, vKey);
+        if (STRUDEL.enabled) previewSeedLayer(post.id, vKey);
+
+        window.CEU_HOVER = 0.18 + Math.random() * 0.26;
         applyPresetFxToDisplay(state.activePreset, state);
       };
 
@@ -903,9 +900,7 @@ a.show()
         applyPresetFxToDisplay(state.activePreset, state);
       };
 
-      // pointer* funciona tanto em iOS/Android modernos quanto desktop
       el.addEventListener("pointerdown", (e) => {
-        // só queremos isso quando o pointer é "coarse" (touch)
         if (isHoverDesktop()) return;
         if (e.target?.closest?.(".bubble")) return;
         touchBoost();
@@ -913,14 +908,14 @@ a.show()
       el.addEventListener("pointerup", () => { if (!isHoverDesktop()) touchReset(); });
       el.addEventListener("pointercancel", () => { if (!isHoverDesktop()) touchReset(); });
 
-      // fallback: alguns navegadores mobile ainda disparam melhor touch*
       el.addEventListener("touchstart", () => { if (!isHoverDesktop()) touchBoost(); }, { passive: true });
       el.addEventListener("touchend", () => { if (!isHoverDesktop()) touchReset(); }, { passive: true });
       el.addEventListener("touchcancel", () => { if (!isHoverDesktop()) touchReset(); }, { passive: true });
     }
 
     // click/tap:
-    // - fixa (som + FX) nesta bolha
+    // - 1 clique: trava (som + FX) nesta bolha (mantém até clicar em OUTRA bolha)
+    // - 2 cliques: abre o conteúdo (viewer)
     el.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
@@ -928,21 +923,30 @@ a.show()
       if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
 
       openSeedBubble(el);
-      window.CEU_PREVIEW_SEED_FX = randomFxFromSeed(post.id);
+
+      // trava FX: se havia preview, trava aquela mesma; senão cria uma nova
+      const lockKey =
+        (STRUDEL.previewSeedId === post.id && STRUDEL.previewVariantKey)
+          ? STRUDEL.previewVariantKey
+          : `lk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+
       STRUDEL.lockedSeedId = post.id;
-      STRUDEL.lockedVariantKey = (STRUDEL.previewVariantKey != null ? STRUDEL.previewVariantKey : Math.random());
-      if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: post.id, lockedVariantKey: STRUDEL.lockedVariantKey });
+      STRUDEL.lockedVariantKey = lockKey;
+
+      window.CEU_LOCKED_SEED_FX = randomFxFromSeed(post.id, lockKey);
+      window.CEU_PREVIEW_SEED_FX = null;
       window.CEU_HOVER = 0;
+
+      if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: post.id, lockedVariantKey: lockKey });
+
       applyPresetFxToDisplay(state.activePreset, state);
     });
 
-    // viewer só com gesto diferente (duplo clique)
     el.addEventListener("dblclick", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
       openViewer(viewerEls, post);
     });
-
     return el;
   }
 
@@ -1198,7 +1202,7 @@ a.show()
 
         // Strudel: cada triângulo tem sua melodia base
         STRUDEL.triangleId = id;
-        if (STRUDEL.enabled) playStrudelMix({ triId: id, lockedSeedId: STRUDEL.lockedSeedId });
+        if (STRUDEL.enabled) playStrudelMix({ triId: id, lockedSeedId: STRUDEL.lockedSeedId, lockedVariantKey: STRUDEL.lockedVariantKey });
 
         miniApi?.syncEditorFromState?.();
         runActivePreset(state);
@@ -1273,11 +1277,8 @@ a.show()
       if (e.target.closest?.(".seed")) return;
       closeAllSeedBubbles();
 
-      // desfaz lock da bolha (som + FX) quando clica fora
-      STRUDEL.lockedSeedId = null;
+      // Fecha o conteúdo, mas mantém o LOCK (FX + som) da última bolha clicada.
       clearPreviewSeedLayer();
-      if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: null, lockedVariantKey: null });
-      window.CEU_LOCKED_SEED_FX = null;
       window.CEU_PREVIEW_SEED_FX = null;
       window.CEU_HOVER = 0;
       applyPresetFxToDisplay(state.activePreset, state);

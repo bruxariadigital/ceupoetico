@@ -568,7 +568,6 @@ input[type="file"]{
 
 .presetTri{
   position: relative;
-  pointer-events: auto;
   width: 46px;
   height: 46px;
   cursor: pointer;
@@ -583,11 +582,12 @@ input[type="file"]{
 
   clip-path: polygon(50% 8%, 92% 88%, 8% 88%);
 
-  /* stroke (contorno) do triângulo — sempre visível */
+  /* Glow que respeita o clip-path (mais confiável que box-shadow em alguns browsers) */
+  filter:
+    drop-shadow(0 0 10px rgba(90,220,255,0.28))
+    drop-shadow(0 0 22px rgba(90,220,255,0.18));
 
-  
-
-  /* 🔥 AGORA SIM: sombra + glow sempre visíveis */
+  /* 🔥 sombra + brilho */
   box-shadow:
     0 18px 70px rgba(0,0,0,0.38),
     0 0 18px rgba(90,220,255,0.18),
@@ -610,14 +610,16 @@ input[type="file"]{
   position: absolute;
   inset: -1px;
   clip-path: polygon(50% 8%, 92% 88%, 8% 88%);
-  border: 1.5px solid rgba(255,255,255,0.36);
+  border: 2.2px solid rgba(255,255,255,0.46);
   filter: drop-shadow(0 0 10px rgba(90,220,255,0.22));
   pointer-events: none;
 }
 
 .presetTri.is-active{
-  border-color: rgba(255,255,255,0.70);
-  filter: drop-shadow(0 0 26px rgba(90,220,255,0.55));
+  border-color: rgba(255,255,255,0.78);
+  filter:
+    drop-shadow(0 0 16px rgba(90,220,255,0.55))
+    drop-shadow(0 0 34px rgba(90,220,255,0.38));
   box-shadow:
     0 28px 110px rgba(0,0,0,0.52),
     0 0 46px rgba(90,220,255,0.55),
