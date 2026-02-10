@@ -40,6 +40,10 @@
       <button id="openHydraMini" class="fab" type="button">
         Crie
       </button>
+
+      <button id="toggleSound" class="fab fab--small" type="button" aria-pressed="false">
+        Som: desligado
+      </button>
     </div>
 
     <!-- Mini editor -->
@@ -52,8 +56,8 @@
       <textarea id="hydraCode" spellcheck="false"></textarea>
 
       <div class="hydra-mini__actions">
-        <a id="resetHydra" class="hydra-reset" href="#">resetar</a>
-        <button id="runHydra" class="btn" type="button">clique-me para rodar o código</button>
+        <button id="runHydra" class="btn btn--run" type="button">clique-me para rodar o código</button>
+        <a id="resetHydra" class="hydra-reset" href="#">Reset códigos</a>
       </div>
     </div>
   </main>
@@ -108,6 +112,13 @@
           A poética do festival cruza videomapping, performance, códigos ao vivo e intervenções urbanas para criar um céu comum:
           um lugar onde cada pessoa deixa sua marca, e a soma dessas marcas vira constelação.
         </p>
+        <hr class="aboutDivider" />
+<p class="aboutSmall">
+  <strong>Recursos usados no site:</strong>
+  visuais generativos com <a href="https://hydra.ojack.xyz/" target="_blank" rel="noopener">Hydra</a>,
+  música ao vivo com <a href="https://strudel.cc/" target="_blank" rel="noopener">Strudel</a>,
+  e experimentos com inteligência artificial (IA) como apoio à programação — sempre a partir da direção criativa do Bruxaria Digital Ateliê/estúdio.
+</p>
         <p class="aboutHint">
           Toque/clique em qualquer lugar fora deste card para fechar.
         </p>
@@ -125,18 +136,10 @@
     </div>
   </dialog>
 
-<!-- Supabase (precisa vir antes do app.js) -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<!-- Hydra -->
-<script src="https://unpkg.com/hydra-synth"></script>
-
-<!-- Módulo do Hydra -->
-<script src="./hydra-engine.js"></script>
-
-<!-- App -->
-<script src="./app.js"></script>
-
-
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="https://unpkg.com/hydra-synth"></script>
+  <script defer src="https://unpkg.com/@strudel/web@1.0.3"></script>
+  <script defer src="./strudel.js"></script>
+  <script defer src="./app.js"></script>
 </body>
 </html>

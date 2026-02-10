@@ -1,14 +1,7 @@
-// Strudel loader (ESM) — expõe API mínima sem poluir globals do Hydra.
-// Documentação: https://strudel.cc/technical-manual/project-start/  (seção @strudel/web)
+// Strudel loader (global) — usa @strudel/web via <script src="https://unpkg.com/@strudel/web@1.0.3"></script>
+// Mantém um namespace leve para referência futura.
 
-import { initStrudel, note, s, setcps, hush } from 'https://esm.sh/@strudel/web@1.0.3';
-
-// Guardamos em um namespace próprio (não cria window.hush, window.note, etc.)
-window.CEU_STRUDEL = {
-  initStrudel,
-  note,
-  s,
-  setcps,
-  hush,
-  ready: false,
-};
+(() => {
+  window.CEU_STRUDEL = window.CEU_STRUDEL || {};
+  window.CEU_STRUDEL.loaded = true;
+})();

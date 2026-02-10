@@ -731,3 +731,68 @@ input[type="file"]{
 .resize-handle--nw{ left:-2px; top:-2px; cursor:nw-resize; }
 .resize-handle--se{ right:-2px; bottom:-2px; cursor:se-resize; }
 .resize-handle--sw{ left:-2px; bottom:-2px; cursor:sw-resize; }
+
+
+/* =====================================================
+   Fix: strokes/glow nos triângulos (sempre visíveis)
+   ===================================================== */
+.presetTri{
+  position: relative;
+  overflow: visible;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+.presetTri::before{
+  content:"";
+  position:absolute;
+  inset:-8px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.28);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.10) inset,
+    0 0 18px rgba(255,255,255,0.10),
+    0 0 26px rgba(255, 0, 200, 0.10);
+  pointer-events:none;
+}
+.presetTri.is-active{
+  box-shadow: 0 0 24px rgba(255,0,200,0.22), 0 0 36px rgba(0,180,255,0.18), 0 12px 34px rgba(0,0,0,0.35);
+}
+.presetTri.is-active::before{
+  border-color: rgba(255,255,255,0.42);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.18) inset,
+    0 0 18px rgba(255,0,200,0.18),
+    0 0 30px rgba(0,180,255,0.16);
+}
+
+/* Mini editor: botão rodar 20% menor */
+.btn--run{
+  transform: scale(0.8);
+  transform-origin: left center;
+}
+
+/* Seed bubble actions */
+.bubbleActions{
+  display:flex;
+  gap:10px;
+  margin-top:10px;
+  align-items:center;
+}
+.bubbleView{
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.92);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.bubbleView:active{ transform: translateY(1px); }
+
+/* Botão som menor */
+.fab--small{
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  opacity: 0.92;
+}

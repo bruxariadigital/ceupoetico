@@ -243,6 +243,192 @@ a.show()
     return window.matchMedia && window.matchMedia("(hover:hover) and (pointer:fine)").matches;
   }
 
+
+// =====================================================
+// STRUDEL (audio) + SEED FX state (preview/locked)
+// =====================================================
+const STRUDEL = {
+  enabled: false,
+  triangleId: "A",
+  lockedSeedId: null,
+  hoverSeedId: null,
+  gain: 0,
+  gainTarget: 0,
+  ready: false
+};
+
+// FX (Hydra) for seeds: hover = preview, locked = persist
+window.CEU_SEED_LOCKED_FX = null;
+window.CEU_SEED_HOVER_FX = null;
+window.CEU_SEED_MIX = 0;        // 0..1 (locked -> hover)
+window.CEU_SEED_MIX_TGT = 0;
+
+function lerp(a,b,t){ return a + (b-a)*t; }
+
+function tickMix() {
+  // smooth mix + Strudel gain fade
+  const mix = window.CEU_SEED_MIX || 0;
+  const tgt = window.CEU_SEED_MIX_TGT || 0;
+  window.CEU_SEED_MIX = lerp(mix, tgt, 0.12);
+
+  STRUDEL.gain = lerp(STRUDEL.gain, STRUDEL.gainTarget, 0.18);
+  window.CEU_STRUDEL_GAIN = STRUDEL.gain;
+
+  requestAnimationFrame(tickMix);
+}
+requestAnimationFrame(tickMix);
+
+async function ensureStrudelReady() {
+  if (STRUDEL.ready) return true;
+  // @strudel/web coloca initStrudel/note/s/setcps/hush/stack etc em window
+  if (typeof window.initStrudel !== "function") return false;
+  try {
+    window.initStrudel();
+    if (typeof window.setcps === "function") window.setcps(0.85);
+    STRUDEL.ready = true;
+    return true;
+  } catch (e) {
+    console.warn("Strudel init falhou:", e);
+    return false;
+  }
+}
+
+function hushSoft() {
+  // Fade-out curto antes de hush (evita corte seco)
+  STRUDEL.gainTarget = 0;
+  setTimeout(() => { try { window.hush?.(); } catch {} }, 180);
+}
+
+function playStrudelMix({ triId, lockedSeedId, hoverSeedId } = {}) {
+  if (!STRUDEL.enabled) return;
+  if (!STRUDEL.ready) return;
+  if (typeof window.note !== "function") return;
+
+  const t = (triId || "A").toUpperCase();
+
+  // Melodias base por triângulo
+  const TRI = {
+    A: window.note("<c4 e4 g4 b4>(3,8)").scale("C4:major").s("gm_lead_6_voice").room(0.22).gain(() => window.CEU_STRUDEL_GAIN),
+    B: window.note("<a3 c4 e4 g4>(3,8)").scale("A3:minor").s("gm_e_piano_1").room(0.22).gain(() => window.CEU_STRUDEL_GAIN),
+    C: window.note("<d4 f4 a4 c5>(3,8)").scale("D4:dorian").s("gm_synth_strings_1").room(0.25).gain(() => window.CEU_STRUDEL_GAIN),
+    D: window.note("<g3 bb3 d4 f4>(3,8)").scale("G3:minor").s("gm_pad_choir").room(0.28).gain(() => window.CEU_STRUDEL_GAIN),
+  };
+
+  // Linha extra (semente)
+  const seedKey = (hoverSeedId || lockedSeedId || "");
+  const seedHash = (typeof seedKey === "string" ? seedKey : String(seedKey || "")).split("").reduce((a,c)=>a + c.charCodeAt(0), 0);
+  const seedPick = seedHash % 4;
+
+  const SEED = [
+    window.note("<c5 ~ e5 g5>(5,8)").scale("C5:major").s("gm_flute").room(0.32).gain(() => window.CEU_STRUDEL_GAIN * 0.75),
+    window.note("<a4 c5 e5 ~>(5,8)").scale("A4:minor").s("gm_oboe").room(0.34).gain(() => window.CEU_STRUDEL_GAIN * 0.70),
+    window.note("<d5 f5 a5 ~>(5,8)").scale("D5:dorian").s("gm_clarinet").room(0.34).gain(() => window.CEU_STRUDEL_GAIN * 0.72),
+    window.note("<g4 bb4 d5 f5>(5,8)").scale("G4:minor").s("gm_warm_pad").room(0.38).gain(() => window.CEU_STRUDEL_GAIN * 0.68),
+  ][seedPick];
+
+  const seedActive = !!(hoverSeedId || lockedSeedId);
+
+  try {
+    hushSoft();
+    setTimeout(() => {
+      const tri = TRI[t] || TRI.A;
+      if (seedActive) window.stack(tri, SEED).play();
+      else tri.play();
+
+      // Fade-in curto
+      STRUDEL.gain = 0;
+      STRUDEL.gainTarget = 1;
+    }, 190);
+  } catch (e) {
+    console.warn("Strudel play falhou:", e);
+  }
+}
+
+// =====================
+// Seed FX recipes (Hydra)
+// =====================
+function randomSeedFx(seedId) {
+  const base = (typeof seedId === "string" ? seedId : String(seedId || ""));
+  const h = base.split("").reduce((a,c)=>a + c.charCodeAt(0), 0);
+  const t = Date.now();
+  const n = (h + t) % 8;
+
+  const a = 0.15 + Math.random() * 0.55;
+  const b = 0.10 + Math.random() * 0.70;
+  const c = 0.10 + Math.random() * 0.80;
+
+  return { type: n, a, b, c };
+}
+
+function applySeedRecipe(node, fx) {
+  if (!fx) return node;
+  const a = fx.a ?? 0.35;
+  const b = fx.b ?? 0.35;
+  const c = fx.c ?? 0.35;
+
+  // IMPORTANTE: nada de auto-referência (node modulando node)
+  switch (fx.type) {
+    case 0:
+      return node.kaleid(Math.floor(2 + a * 10)).rotate(() => a * 0.25).contrast(() => 1 + a * 0.35);
+    case 1:
+      return node.pixelate(() => 20 + a * 120, () => 14 + b * 90).posterize(() => 3 + a * 6, () => 0.65 + b * 0.25);
+    case 2:
+      return node.modulate(noise(() => 2 + a * 6, () => 0.15 + b * 0.35), () => 0.08 + a * 0.18).luma(() => 0.22 + b * 0.22);
+    case 3:
+      return node.modulateRotate(osc(() => 2 + a * 8, () => 0.08 + b * 0.2, () => 0.1 + c * 0.5), () => 0.06 + a * 0.22).invert(() => 0.25 + b * 0.55);
+    case 4:
+      return node.thresh(() => 0.18 + a * 0.30, () => 0.06 + b * 0.10).colorama(() => 0.15 + c * 0.55);
+    case 5:
+      return node.shift(() => (a * 0.12), () => (b * 0.10), () => (c * 0.08)).contrast(() => 1.05 + a * 0.45);
+    case 6:
+      return node.diff(osc(() => 8 + a * 28, () => 0.02 + b * 0.10, () => 0.2 + c * 0.6)).brightness(() => -0.05 + a * 0.10);
+    case 7:
+    default:
+      return node.add(osc(() => 1 + a * 10, () => 0.05 + b * 0.18, () => 0.1 + c * 0.7).luma(0.55), () => 0.08 + a * 0.12);
+  }
+}
+
+function setSeedHover(state, seedId) {
+  STRUDEL.hoverSeedId = seedId;
+  window.CEU_SEED_HOVER_FX = randomSeedFx(seedId);
+  window.CEU_SEED_MIX_TGT = 1;
+
+  applyPresetFxToDisplay(state.activePreset, state);
+  if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId, hoverSeedId: STRUDEL.hoverSeedId });
+}
+
+function clearSeedHover(state) {
+  STRUDEL.hoverSeedId = null;
+  window.CEU_SEED_HOVER_FX = null;
+  window.CEU_SEED_MIX_TGT = 0;
+
+  applyPresetFxToDisplay(state.activePreset, state);
+  if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId, hoverSeedId: null });
+}
+
+function lockSeed(state, seedId) {
+  STRUDEL.lockedSeedId = seedId;
+  window.CEU_SEED_LOCKED_FX = window.CEU_SEED_HOVER_FX || randomSeedFx(seedId);
+  window.CEU_SEED_HOVER_FX = null;
+  STRUDEL.hoverSeedId = null;
+  window.CEU_SEED_MIX_TGT = 0;
+
+  applyPresetFxToDisplay(state.activePreset, state);
+  if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
+}
+
+function clearLockedSeed(state) {
+  STRUDEL.lockedSeedId = null;
+  window.CEU_SEED_LOCKED_FX = null;
+  window.CEU_SEED_HOVER_FX = null;
+  STRUDEL.hoverSeedId = null;
+  window.CEU_SEED_MIX_TGT = 0;
+
+  applyPresetFxToDisplay(state.activePreset, state);
+  if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: null });
+}
+
+
   // =====================================================
   // HYDRA (real) + DPR fit (corrige pixelado)
   // =====================================================
@@ -251,54 +437,83 @@ a.show()
 
   window.CEU_HOVER = 0;
 
-  // =====================================================
-  // HYDRA (módulo)
-  // =====================================================
-
-  window.CEU_HOVER = 0;
-
   function fitHydraCanvasToScreen() {
-    window.CEU_HYDRA?.fit?.();
+    const canvas = document.getElementById("hydra-canvas");
+    if (!canvas) return;
+
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const w = Math.floor(window.innerWidth * dpr);
+    const h = Math.floor(window.innerHeight * dpr);
+
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
+
+    canvas.style.width = "100vw";
+    canvas.style.height = "100vh";
+
+    try {
+      if (hydraInstance?.setResolution) hydraInstance.setResolution(w, h);
+    } catch {}
   }
 
   function initHydraBackground() {
-    // mantém a mesma assinatura/uso do resto do app
-    window.CEU_HYDRA?.init?.({ canvasId: "hydra-canvas" });
+    if (hydraReady) return;
+    if (typeof window.Hydra === "undefined") return;
+
+    const canvas = document.getElementById("hydra-canvas");
+    if (!canvas) return;
+
+    // eslint-disable-next-line no-undef
+    hydraInstance = new Hydra({ canvas, detectAudio: true, makeGlobal: true });
+    hydraReady = true;
+
+    fitHydraCanvasToScreen();
+    window.addEventListener("resize", fitHydraCanvasToScreen);
+    window.addEventListener("orientationchange", () => setTimeout(fitHydraCanvasToScreen, 60));
   }
 
   function hushIfPossible() {
-    window.CEU_HYDRA?.hush?.();
+    try { if (typeof window.hush === "function") window.hush(); } catch {}
   }
 
   function safeEvalHydra(code) {
-    window.CEU_HYDRA?.eval?.(code);
+    (0, eval)(code);
   }
 
+  
+function applyPresetFxToDisplay(presetId, state) {
+  const meta = PRESET_DEFAULTS[presetId] || PRESET_DEFAULTS.A;
+  const srcName = meta.renderBuf || "o0";
+  const srcBuf = globalThis[srcName] || globalThis.o0;
+  const outBuf = globalThis[DISPLAY_BUF] || globalThis.o3;
 
-  function applyPresetFxToDisplay(presetId, state) {
-    const meta = PRESET_DEFAULTS[presetId] || PRESET_DEFAULTS.A;
-    const srcName = meta.renderBuf || "o0";
-    const srcBuf = globalThis[srcName] || globalThis.o0;
-    const outBuf = globalThis[DISPLAY_BUF] || globalThis.o3;
+  const fx = state.presets[presetId]?.fx || defaultFx();
 
-    const fx = state.presets[presetId]?.fx || defaultFx();
+  // Hover "leve" (antigo) + Seed preview/lock (novo)
+  const h = window.CEU_HOVER || 0;
+  const lockedFx = window.CEU_SEED_LOCKED_FX || null;
+  const hoverFx  = window.CEU_SEED_HOVER_FX || null;
 
-    // suaviza “hover-hydra” (menos colorama / menos saturação)
-    const h = window.CEU_HOVER || 0;
+  try {
+    const base = src(srcBuf)
+      .contrast(() => fx.contrast + h * 0.14)
+      .saturate(() => fx.saturate + h * 0.22)
+      .brightness(() => fx.brightness + h * 0.05)
+      .colorama(() => fx.colorama + h * 0.16);
 
-    try {
-      src(srcBuf)
-        .contrast(() => fx.contrast + h * 0.14)
-        .saturate(() => fx.saturate + h * 0.22)
-        .brightness(() => fx.brightness + h * 0.05)
-        .colorama(() => fx.colorama + h * 0.16)
-        .out(outBuf);
+    const locked = lockedFx ? applySeedRecipe(base, lockedFx) : base;
+    const hover  = hoverFx  ? applySeedRecipe(base, hoverFx)  : locked;
 
-      if (typeof window.render === "function") window.render(outBuf);
-    } catch (e) {
-      console.warn("FX falhou (ignorado):", e);
-    }
+    const mixAmt = () => clamp(window.CEU_SEED_MIX || 0, 0, 1);
+    const finalNode = hoverFx ? locked.blend(hover, mixAmt) : locked;
+
+    finalNode.out(outBuf);
+
+    if (typeof window.render === "function") window.render(outBuf);
+  } catch (e) {
+    console.warn("FX falhou (ignorado):", e);
   }
+}
 
   function runActivePreset(state) {
     initHydraBackground();
@@ -553,146 +768,146 @@ a.show()
   }
 
   function createSeedEl(post, viewerEls, state, garden) {
-    const el = document.createElement("button");
-    el.className = "seed";
-    el.type = "button";
+  const el = document.createElement("button");
+  el.className = "seed";
+  el.type = "button";
+  el.dataset.seedId = String(post.id || "");
 
-    const x = 6 + Math.random() * 88;
-    const y = 12 + Math.random() * 76;
-    el.style.left = x.toFixed(2) + "%";
-    el.style.top = y.toFixed(2) + "%";
+  const x = 6 + Math.random() * 88;
+  const y = 12 + Math.random() * 76;
+  el.style.left = x.toFixed(2) + "%";
+  el.style.top = y.toFixed(2) + "%";
 
-    const dur = 4.8 + Math.random() * 4.5;
-    el.style.animationDuration = dur.toFixed(2) + "s";
-    el.style.animationDelay = (-Math.random() * dur).toFixed(2) + "s";
+  const dur = 4.8 + Math.random() * 4.5;
+  el.style.animationDuration = dur.toFixed(2) + "s";
+  el.style.animationDelay = (-Math.random() * dur).toFixed(2) + "s";
 
-    const mediaType = post.media_type || "";
-    const isImage = mediaType.startsWith("image/");
+  const mediaType = post.media_type || "";
+  const isImage = mediaType.startsWith("image/");
 
-    if (post.image_url && isImage) {
-      const img = document.createElement("img");
-      img.className = "seedThumb";
-      img.src = post.image_url;
-      img.alt = "";
-      img.draggable = false;
-      el.appendChild(img);
-    } else {
-      const span = document.createElement("span");
-      span.className = "emoji";
-      span.textContent = pickGlyph(post.id);
-      el.appendChild(span);
-    }
-
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-
-    if (post.image_url && isImage) {
-      const bImg = document.createElement("img");
-      bImg.src = post.image_url;
-      bImg.alt = "";
-      bImg.draggable = false;
-      bubble.appendChild(bImg);
-    }
-
-    if (post.text) {
-      const bText = document.createElement("div");
-      bText.className = "bubbleText";
-      bText.textContent = post.text;
-      bubble.appendChild(bText);
-    }
-
-    const hint = document.createElement("div");
-    hint.className = "bubbleHint";
-    hint.textContent = isHoverDesktop() ? "clique para abrir" : "toque de novo para abrir";
-    bubble.appendChild(hint);
-
-    el.appendChild(bubble);
-
-    // drag (desktop + mobile)
-    enableSeedDrag(el, garden);
-
-    // hover (somente desktop): abre bolha + hover FX
-    if (isHoverDesktop()) {
-      let closeT = null;
-
-      el.addEventListener("pointerenter", () => {
-        clearTimeout(closeT);
-        openSeedBubble(el);
-
-        window.CEU_HOVER = 0.28 + Math.random() * 0.45;
-        applyPresetFxToDisplay(state.activePreset, state);
-      });
-
-      el.addEventListener("pointerleave", () => {
-        window.CEU_HOVER = 0;
-        applyPresetFxToDisplay(state.activePreset, state);
-
-        closeT = setTimeout(() => {
-          el.classList.remove("is-open");
-          el.style.zIndex = "";
-        }, 180);
-      });
-    } else {
-      // touch: simula "hover" com pressionar/soltar
-      // (permite ver os efeitos no mobile sem depender de hover real)
-      const touchBoost = () => {
-        // evita ativar se estava arrastando
-        if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
-        window.CEU_HOVER = 0.22 + Math.random() * 0.28;
-        applyPresetFxToDisplay(state.activePreset, state);
-      };
-
-      const touchReset = () => {
-        window.CEU_HOVER = 0;
-        applyPresetFxToDisplay(state.activePreset, state);
-      };
-
-      // pointer* funciona tanto em iOS/Android modernos quanto desktop
-      el.addEventListener("pointerdown", (e) => {
-        // só queremos isso quando o pointer é "coarse" (touch)
-        if (isHoverDesktop()) return;
-        if (e.target?.closest?.(".bubble")) return;
-        touchBoost();
-      });
-      el.addEventListener("pointerup", () => { if (!isHoverDesktop()) touchReset(); });
-      el.addEventListener("pointercancel", () => { if (!isHoverDesktop()) touchReset(); });
-
-      // fallback: alguns navegadores mobile ainda disparam melhor touch*
-      el.addEventListener("touchstart", () => { if (!isHoverDesktop()) touchBoost(); }, { passive: true });
-      el.addEventListener("touchend", () => { if (!isHoverDesktop()) touchReset(); }, { passive: true });
-      el.addEventListener("touchcancel", () => { if (!isHoverDesktop()) touchReset(); }, { passive: true });
-    }
-
-    // click/tap:
-    // - se arrastou agora: ignora
-    // - mobile: 1º abre bolha, 2º abre viewer
-    // - desktop: click abre viewer direto (bolha já abre no hover)
-    el.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-
-      if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
-
-      if (isHoverDesktop()) {
-        openViewer(viewerEls, post);
-        return;
-      }
-
-      const isOpen = el.classList.contains("is-open");
-      if (!isOpen) {
-        openSeedBubble(el);
-        return;
-      }
-
-      el.classList.remove("is-open");
-      el.style.zIndex = "";
-      openViewer(viewerEls, post);
-    });
-
-    return el;
+  if (post.image_url && isImage) {
+    const img = document.createElement("img");
+    img.className = "seedThumb";
+    img.src = post.image_url;
+    img.alt = "";
+    img.draggable = false;
+    el.appendChild(img);
+  } else {
+    const span = document.createElement("span");
+    span.className = "emoji";
+    span.textContent = pickGlyph(post.id);
+    el.appendChild(span);
   }
 
-  async function renderGarden(garden, viewerEls, state) {
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+
+  if (post.image_url && isImage) {
+    const bImg = document.createElement("img");
+    bImg.src = post.image_url;
+    bImg.alt = "";
+    bImg.draggable = false;
+    bubble.appendChild(bImg);
+  }
+
+  if (post.text) {
+    const bText = document.createElement("div");
+    bText.className = "bubbleText";
+    bText.textContent = post.text;
+    bubble.appendChild(bText);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "bubbleActions";
+
+  const viewBtn = document.createElement("button");
+  viewBtn.type = "button";
+  viewBtn.className = "bubbleView";
+  viewBtn.textContent = "ver";
+  actions.appendChild(viewBtn);
+
+  bubble.appendChild(actions);
+
+  const hint = document.createElement("div");
+  hint.className = "bubbleHint";
+  hint.textContent = isHoverDesktop()
+    ? "clique para fixar som + FX • duplo clique (ou 'ver') para abrir"
+    : "toque para fixar som + FX • toque em 'ver' para abrir";
+  bubble.appendChild(hint);
+
+  el.appendChild(bubble);
+
+  // drag (desktop + mobile)
+  enableSeedDrag(el, garden);
+
+  const seedId = String(post.id || "");
+
+  // ===== Desktop hover preview =====
+  if (isHoverDesktop()) {
+    let closeT = null;
+
+    el.addEventListener("pointerenter", () => {
+      clearTimeout(closeT);
+      openSeedBubble(el);
+      setSeedHover(state, seedId);
+    });
+
+    el.addEventListener("pointerleave", () => {
+      clearSeedHover(state);
+
+      closeT = setTimeout(() => {
+        el.classList.remove("is-open");
+        el.style.zIndex = "";
+      }, 180);
+    });
+
+    // duplo clique abre viewer
+    el.addEventListener("dblclick", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openViewer(viewerEls, post);
+    });
+  } else {
+    // Mobile: preview enquanto pressiona
+    el.addEventListener("pointerdown", (e) => {
+      if (isHoverDesktop()) return;
+      if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
+      setSeedHover(state, seedId);
+    });
+    const resetPreview = () => clearSeedHover(state);
+    el.addEventListener("pointerup", resetPreview);
+    el.addEventListener("pointercancel", resetPreview);
+  }
+
+  // ===== Clique/tap fixa som + FX (lock) =====
+  el.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+
+    if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
+
+    openSeedBubble(el);
+
+    // Toggle simples: se clicar na mesma seed já travada, destrava.
+    if (STRUDEL.lockedSeedId === seedId) {
+      clearLockedSeed(state);
+    } else {
+      lockSeed(state, seedId);
+    }
+  });
+
+  // Botão "ver" abre viewer (gesto separado)
+  viewBtn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    openViewer(viewerEls, post);
+  });
+
+  return el;
+}
+
+async function renderGarden(garden, viewerEls, state) {
+(garden, viewerEls, state) {
     if (!garden) return;
     if (!supabaseReady()) return;
 
@@ -787,7 +1002,7 @@ a.show()
       ev.stopPropagation();
 
       const id = activeId();
-      const ok = confirm(`Resetar o preset ${id} para o código padrão? Você vai perder as alterações desse preset.`);
+      const ok = confirm(`Resetar códigos do preset ${id} para o código padrão? Você vai perder as alterações desse preset.`);
       if (!ok) return;
 
       state.presets[id].code = PRESET_DEFAULTS[id].code;
@@ -942,6 +1157,10 @@ a.show()
         state.activePreset = id;
         saveState(state);
 
+        // áudio base acompanha o triângulo selecionado
+        STRUDEL.triangleId = id;
+        if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId, hoverSeedId: STRUDEL.hoverSeedId });
+
         miniApi?.syncEditorFromState?.();
         runActivePreset(state);
         setActiveUI();
@@ -1010,10 +1229,46 @@ a.show()
     const viewerMeta = document.getElementById("viewerMeta");
     const viewerEls = { viewer, viewerImg, viewerText, viewerMeta };
 
+
+// Som (Strudel)
+const soundBtn = document.getElementById("toggleSound");
+const setSoundLabel = () => {
+  if (!soundBtn) return;
+  soundBtn.textContent = STRUDEL.enabled ? "Som: ligado" : "Som: desligado";
+  soundBtn.setAttribute("aria-pressed", STRUDEL.enabled ? "true" : "false");
+};
+setSoundLabel();
+
+soundBtn?.addEventListener("click", async (ev) => {
+  ev.preventDefault();
+  ev.stopPropagation();
+
+  if (!STRUDEL.enabled) {
+    const ok = await ensureStrudelReady();
+    if (!ok) {
+      alert("Não foi possível carregar o Strudel. Verifique sua conexão e tente novamente.");
+      return;
+    }
+    STRUDEL.enabled = true;
+    STRUDEL.gain = 0;
+    STRUDEL.gainTarget = 1;
+    // toca triângulo atual (sem seed, se não houver lock/hover)
+    playStrudelMix({ triId: STRUDEL.triangleId || state.activePreset, lockedSeedId: STRUDEL.lockedSeedId, hoverSeedId: STRUDEL.hoverSeedId });
+  } else {
+    STRUDEL.enabled = false;
+    hushSoft();
+  }
+
+  setSoundLabel();
+});
+
+
     // Fecha bolhas ao clicar em qualquer lugar fora
     document.addEventListener("pointerdown", (e) => {
       if (e.target.closest?.(".seed")) return;
       closeAllSeedBubbles();
+      // clicar fora: volta para o fundo padrão (remove seed travada)
+      clearLockedSeed(state);
     });
 
     // Desencorajar “download fácil” (não impede 100%)
