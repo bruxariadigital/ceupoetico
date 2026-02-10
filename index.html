@@ -37,12 +37,12 @@
         Plantar uma semente
       </button>
 
-      <button id="openHydraMini" class="fab" type="button">
-        Crie
+      <button id="toggleSound" class="fab fab--sound" type="button" aria-pressed="false">
+        Som: off
       </button>
 
-      <button id="toggleSound" class="fab fab--small" type="button" aria-pressed="false">
-        Som: desligado
+      <button id="openHydraMini" class="fab" type="button">
+        Crie
       </button>
     </div>
 
@@ -56,8 +56,8 @@
       <textarea id="hydraCode" spellcheck="false"></textarea>
 
       <div class="hydra-mini__actions">
-        <button id="runHydra" class="btn btn--run" type="button">clique-me para rodar o código</button>
         <a id="resetHydra" class="hydra-reset" href="#">Reset códigos</a>
+        <button id="runHydra" class="btn btn--run" type="button">clique-me para rodar o código</button>
       </div>
     </div>
   </main>
@@ -112,13 +112,24 @@
           A poética do festival cruza videomapping, performance, códigos ao vivo e intervenções urbanas para criar um céu comum:
           um lugar onde cada pessoa deixa sua marca, e a soma dessas marcas vira constelação.
         </p>
-        <hr class="aboutDivider" />
-<p class="aboutSmall">
-  <strong>Recursos usados no site:</strong>
-  visuais generativos com <a href="https://hydra.ojack.xyz/" target="_blank" rel="noopener">Hydra</a>,
-  música ao vivo com <a href="https://strudel.cc/" target="_blank" rel="noopener">Strudel</a>,
-  e experimentos com inteligência artificial (IA) como apoio à programação — sempre a partir da direção criativa do Bruxaria Digital Ateliê/estúdio.
-</p>
+
+        <div class="aboutResources">
+          <h3 class="aboutH3">Recursos usados neste site</h3>
+          <ul class="aboutList">
+            <li>
+              <strong>Hydra</strong> — sintetizador de vídeo em tempo real (WebGL), usado para o fundo vivo.
+              <a href="https://hydra.ojack.xyz/" target="_blank" rel="noopener">hydra.ojack.xyz</a>
+            </li>
+            <li>
+              <strong>Strudel</strong> — live coding de música no navegador (linguagem de padrões). 
+              <a href="https://strudel.cc/" target="_blank" rel="noopener">strudel.cc</a>
+            </li>
+            <li>
+              <strong>IA</strong> — usada como apoio criativo/experimental (rascunhos, testes e variações), sempre com curadoria humana.
+            </li>
+          </ul>
+        </div>
+
         <p class="aboutHint">
           Toque/clique em qualquer lugar fora deste card para fechar.
         </p>
@@ -138,8 +149,7 @@
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://unpkg.com/hydra-synth"></script>
-  <script defer src="https://unpkg.com/@strudel/web@1.0.3"></script>
-  <script defer src="./strudel.js"></script>
+  <script type="module" src="./strudel.js"></script>
   <script defer src="./app.js"></script>
 </body>
 </html>
