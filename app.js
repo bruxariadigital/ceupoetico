@@ -309,6 +309,9 @@ a.show()
     basePattern: null,
     overlayPattern: null,
     overlayPreview: null,
+    baseHandle: null,
+    overlayHandle: null,
+    previewHandle: null,
   };
 
 
@@ -399,7 +402,27 @@ a.show()
   }
 
   function stopStrudelAll() {
-    try { window.CEU_STRUDEL?.stopAll?.(); } catch {}
+    // NUNCA chame hush() global aqui: Hydra e Strudel podem colidir no nome.
+    // Preferimos parar apenas os handles retornados por .play() (quando disponíveis).
+    try {
+      STRUDEL.baseHandle?.stop?.();
+    } catch {}
+    try {
+      STRUDEL.overlayHandle?.stop?.();
+    } catch {}
+    try {
+      STRUDEL.previewHandle?.stop?.();
+    } catch {}
+
+    // Alguns builds expõem stop() no próprio pattern:
+    try { STRUDEL.basePattern?.stop?.(); } catch {}
+    try { STRUDEL.overlayPattern?.stop?.(); } catch {}
+    try { STRUDEL.overlayPreview?.stop?.(); } catch {}
+
+    STRUDEL.baseHandle = null;
+    STRUDEL.overlayHandle = null;
+    STRUDEL.previewHandle = null;
+
     STRUDEL.basePattern = null;
     STRUDEL.overlayPattern = null;
     STRUDEL.overlayPreview = null;
@@ -417,12 +440,16 @@ a.show()
 
     const base = buildTrianglePattern(triId);
     STRUDEL.basePattern = base;
-    if (base && typeof base.play === "function") base.play();
+    if (base && typeof base.play === "function") {
+      try { STRUDEL.baseHandle = base.play(); } catch { base.play(); }
+    }
 
     if (STRUDEL.lockedSeedId) {
       const layer = buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey || "v0");
       STRUDEL.overlayPattern = layer;
-      layer.play();
+      if (layer && typeof layer.play === "function") {
+        try { STRUDEL.overlayHandle = layer.play(); } catch { layer.play(); }
+      }
     }
   }
 
@@ -437,12 +464,34 @@ a.show()
     STRUDEL.previewSeedId = seedId;
     STRUDEL.previewVariantKey = variantKey;
 
-    // prévia: reconstroi base + lock e toca a preview por cima
-    try { window.CEU_STRUDEL?.stopAll?.(); } catch {}
-    try { const b = buildTrianglePattern(STRUDEL.triangleId); if (b && typeof b.play === "function") b.play(); } catch {}
-    if (STRUDEL.lockedSeedId) {
-      try { buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey || "v0").play(); } catch {}
+    // GARANTIR base e lock tocando (sem hush global)
+    if (!STRUDEL.baseHandle) {
+      const base = buildTrianglePattern(STRUDEL.triangleId);
+      STRUDEL.basePattern = base;
+      if (base && typeof base.play === "function") {
+        try { STRUDEL.baseHandle = base.play(); } catch { base.play(); }
+      }
     }
+
+    // lock layer (se existir)
+    if (STRUDEL.lockedSeedId && !STRUDEL.overlayHandle) {
+      const layer = buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey || "v0");
+      STRUDEL.overlayPattern = layer;
+      if (layer && typeof layer.play === "function") {
+        try { STRUDEL.overlayHandle = layer.play(); } catch { layer.play(); }
+      }
+    }
+
+    // troca só a PREVIEW (para ficar suave e não mexer no Hydra)
+    try { STRUDEL.previewHandle?.stop?.(); } catch {}
+    try { STRUDEL.overlayPreview?.stop?.(); } catch {}
+
+    const pv = buildSeedLayer(seedId, "preview", variantKey || "pv0");
+    STRUDEL.overlayPreview = pv;
+    if (pv && typeof pv.play === "function") {
+      try { STRUDEL.previewHandle = pv.play(); } catch { pv.play(); }
+    }
+  }
     try { buildSeedLayer(seedId, "preview", variantKey || "pv0").play(); } catch {}
   }
 
