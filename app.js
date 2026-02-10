@@ -41,6 +41,13 @@
   const DISPLAY_BUF = "o3";
   const PRESET_IDS = ["A", "B", "C", "D"];
 
+  // Seed FX lock state
+  window.CEU_LOCKED_SEED_ID = window.CEU_LOCKED_SEED_ID || null;
+  window.CEU_LOCKED_SEED_FX = window.CEU_LOCKED_SEED_FX || null;
+  window.CEU_PREVIEW_SEED_FX = null;
+  window.CEU_HOVER = 0;
+
+
   const PRESET_DEFAULTS = {
     // A: (novo) — PARA VOCÊ, O QUE É SER POTIGUAR?
     A: {
@@ -175,7 +182,8 @@ a.show()
     return {
       userKey: getUserKey(),
       activePreset: "A",
-      presets
+      presets,
+      seedPowers: {}
     };
   }
 
@@ -291,209 +299,10 @@ a.show()
   }
 
   // =====================================================
-  // ÁUDIO
-  // (Strudel removido deste projeto. Hydra permanece.)
-  // =====================================================
-
-  function safeEvalHydra(code) {
-    (0, eval)(code);
-  }
-
-  // =====================================================
-  // Hydra FX por bolha (hover/click)
-  //   - cada bolha ganha um “poder” (movimento + perfil) quando nasce
-  //   - hover mostra bolha + aplica FX em preview (temporário)
-  //   - 1 clique trava o FX atual (lock)
-  //   - 2 cliques abre o viewer sem desfazer lock
-  //   - clique fora fecha a bolha, mas mantém lock
-  //   - hover só altera FX enquanto NÃO há lock
-  // =====================================================
-  const SEED_POWER_KEY = "CEUPOETICO_SEED_POWER_V1";
-
-  let seedPowerMap = null;
-  function loadSeedPowerMap() {
-    if (seedPowerMap) return seedPowerMap;
-    try {
-      seedPowerMap = JSON.parse(localStorage.getItem(SEED_POWER_KEY) || "{}") || {};
-    } catch {
-      seedPowerMap = {};
-    }
-    return seedPowerMap;
-  }
-
-  function saveSeedPowerMap() {
-    try { localStorage.setItem(SEED_POWER_KEY, JSON.stringify(seedPowerMap || {})); } catch {}
-  }
-
-  function ensureSeedPower(seedId) {
-    if (!seedId) return null;
-    const map = loadSeedPowerMap();
-    if (map[seedId]) return map[seedId];
-
-    // "momento de plantar": na prática, assim que a seed existe no cliente.
-    const pick = Math.floor(Math.random() * 7); // 0..6 (mantemos 7 efeitos seguros)
-    const amp = 0.18 + Math.random() * 0.55;
-    const speed = 0.6 + Math.random() * 1.9;
-    const phase = Math.random() * Math.PI * 2;
-    const biasA = 0.10 + Math.random() * 0.28;
-    const biasB = 1.2 + Math.random() * 4.8;
-    map[seedId] = { pick, amp, speed, phase, biasA, biasB };
-    saveSeedPowerMap();
-    return map[seedId];
-  }
-
-  function fxFromPower(seedId, tSec) {
-    const p = ensureSeedPower(seedId);
-    if (!p) return null;
-    const w = p.speed;
-    const a = p.biasA + Math.abs(Math.sin(tSec * w + p.phase)) * p.amp;
-    const b = p.biasB + (0.5 + 0.5 * Math.cos(tSec * (w * 0.72) + p.phase * 0.7)) * 5.0;
-    return { pick: p.pick, a, b, seedId };
-  }
-
-  let lockedSeedId = null;
-  let lockedSeedFx = null;
-  let previewSeedId = null;
-  let previewRaf = 0;
-  let previewT0 = 0;
-
-  function stopPreviewLoop() {
-    if (previewRaf) cancelAnimationFrame(previewRaf);
-    previewRaf = 0;
-    previewSeedId = null;
-    window.CEU_HOVER = 0;
-  }
-
-  function startPreviewLoop(seedId, state) {
-    if (!seedId) return;
-    if (lockedSeedId) return; // hover só funciona enquanto não há lock
-
-    previewSeedId = seedId;
-    previewT0 = performance.now();
-    window.CEU_HOVER = 0.28;
-
-    const tick = (now) => {
-      if (!previewSeedId || previewSeedId !== seedId) return;
-      if (lockedSeedId) return;
-
-      const t = (now - previewT0) / 1000;
-      window.CEU_SEED_FX = fxFromPower(seedId, t);
-
-      // "invista no movimento": pulsar leve no hover
-      window.CEU_HOVER = 0.22 + 0.10 * Math.abs(Math.sin(t * 1.35));
-      applyPresetFxToDisplay(state.activePreset, state);
-
-      previewRaf = requestAnimationFrame(tick);
-    };
-
-    previewRaf = requestAnimationFrame(tick);
-  }
-
-  function clearPreview(state) {
-    stopPreviewLoop();
-    if (lockedSeedId) {
-      window.CEU_SEED_FX = lockedSeedFx;
-      window.CEU_HOVER = 0;
-      applyPresetFxToDisplay(state.activePreset, state);
-      return;
-    }
-    window.CEU_SEED_FX = null;
-    window.CEU_HOVER = 0;
-    applyPresetFxToDisplay(state.activePreset, state);
-  }
-
-  function lockSeedFx(seedId) {
-    lockedSeedId = seedId || null;
-    lockedSeedFx = window.CEU_SEED_FX ? { ...window.CEU_SEED_FX } : null;
-    window.CEU_SEED_FX = lockedSeedFx;
-    window.CEU_HOVER = 0;
-  }
-
-  function applyRandomSeedFx(node, fxObj) {
-    if (!fxObj) return node;
-    const p = fxObj.pick % 7;
-    try {
-      if (p === 0) return node.invert(fxObj.a);
-      if (p === 1) return node.posterize(Math.floor(2 + fxObj.b), 0.6);
-      if (p === 2) return node.kaleid(Math.floor(2 + fxObj.b)).rotate(() => fxObj.a * 0.35);
-      if (p === 3) return node.pixelate(18 + Math.floor(fxObj.b * 12), 10 + Math.floor(fxObj.b * 6));
-      if (p === 4) return node.scrollX(() => fxObj.a * 0.02, () => fxObj.a * 0.01).scrollY(() => -fxObj.a * 0.02, () => fxObj.a * 0.01);
-      if (p === 5) return node.modulateRotate(osc(2, 0.15, 0.5), () => fxObj.a * 0.35).contrast(1.0 + fxObj.a * 0.35);
-      return node.modulateScale(noise(2, 0.15), () => 0.85 + fxObj.a * 0.75, () => fxObj.a * 0.15).luma(() => 0.22 + fxObj.a * 0.55, 0.15);
-    } catch {
-      return node;
-    }
-  }
-
-  function applyPresetFxToDisplay(presetId, state) {
-    const meta = PRESET_DEFAULTS[presetId] || PRESET_DEFAULTS.A;
-    const srcName = meta.renderBuf || "o0";
-    const srcBuf = globalThis[srcName] || globalThis.o0;
-    const outBuf = globalThis[DISPLAY_BUF] || globalThis.o3;
-
-    const fx = state.presets[presetId]?.fx || defaultFx();
-
-    // suaviza “hover-hydra” (menos colorama / menos saturação)
-    const h = window.CEU_HOVER || 0;
-
-    const seedFx = window.CEU_SEED_FX || null; // {pick,a,b}
-
-    try {
-      let chain = src(srcBuf);
-      chain = applyRandomSeedFx(chain, seedFx);
-
-      chain
-        .contrast(() => fx.contrast + h * 0.14)
-        .saturate(() => fx.saturate + h * 0.22)
-        .brightness(() => fx.brightness + h * 0.05)
-        .colorama(() => fx.colorama + h * 0.16)
-        .out(outBuf);
-
-      if (typeof window.render === "function") window.render(outBuf);
-    } catch (e) {
-      console.warn("FX falhou (ignorado):", e);
-    }
-  }
-
-  function runActivePreset(state) {
-    initHydraBackground();
-    hushIfPossible();
-
-    const presetId = PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A";
-    const code = (state.presets[presetId]?.code || PRESET_DEFAULTS[presetId]?.code || "").trim();
-    if (!code) return;
-
-    try {
-      safeEvalHydra(code);
-    } catch (e) {
-      console.error(e);
-      alert("Erro no código Hydra do preset ativo. Veja o console.");
-      return;
-    }
-
-    applyPresetFxToDisplay(presetId, state);
-  }
-
-  // =====================================================
-  // SEEDS: plantar altera FX aleatório do preset ativo
-  // =====================================================
-  function mutateFxOnPlant(state) {
-    const id = PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A";
-    const fx = state.presets[id]?.fx || defaultFx();
-
-    const pick = Math.floor(Math.random() * 4);
-
-    if (pick === 0) fx.contrast   = clamp(fx.contrast + (Math.random() * 0.22), 0.75, 2.1);
-    if (pick === 1) fx.saturate   = clamp(fx.saturate + (Math.random() * 0.28), 0.70, 2.20);
-    if (pick === 2) fx.brightness = clamp(fx.brightness + (Math.random() * 0.06 - 0.02), -0.22, 0.28);
-    if (pick === 3) fx.colorama   = clamp(fx.colorama + (Math.random() * 0.18), 0, 1.20);
-
-    state.presets[id].fx = fx;
-    saveState(state);
-
-    applyPresetFxToDisplay(id, state);
-  }
-
+  // - clique no triângulo = melodia base diferente
+  // - hover na bolha = prévia de camada (não fixa)
+  // - clique na bolha = fixa camada (som + FX)
+  // - "Som: on/off" com fade curto (sem corte seco)
   // =====================================================
   // SUPABASE (mural)
   // =====================================================
@@ -777,7 +586,7 @@ a.show()
     // drag (desktop + mobile)
     enableSeedDrag(el, garden);
 
-    // hover (somente desktop): abre bolha + preview (FX temporário)
+    // hover (somente desktop): abre bolha + preview (som + FX)
     if (isHoverDesktop()) {
       let closeT = null;
 
@@ -785,12 +594,33 @@ a.show()
         clearTimeout(closeT);
         openSeedBubble(el);
 
-        // hover só mexe no Hydra enquanto NÃO há lock
-        startPreviewLoop(post.id, state);
+        // hover = preview temporário (só funciona se não houver lock)
+        if (!window.CEU_LOCKED_SEED_ID) {
+          const fx = nextSeedFx(state, post.id);
+          window.CEU_PREVIEW_SEED_FX = fx;
+          window.CEU_HOVER = 0.28 + Math.random() * 0.45;
+          applyPresetFxToDisplay(state.activePreset, state);
+
+          // “movimento”: atualiza parâmetros enquanto o hover estiver ativo
+          const rt = SEED_RUNTIME.get(post.id);
+          if (rt && !rt.hoverTimer) {
+            rt.hoverTimer = setInterval(() => {
+              if (window.CEU_LOCKED_SEED_ID) return; // se travou no meio, para
+              window.CEU_PREVIEW_SEED_FX = nextSeedFx(state, post.id);
+              window.CEU_HOVER = 0.24 + Math.random() * 0.42;
+              applyPresetFxToDisplay(state.activePreset, state);
+            }, 240);
+          }
+        }
       });
 
       el.addEventListener("pointerleave", () => {
-        clearPreview(state);
+        // encerra preview
+        const rt = SEED_RUNTIME.get(post.id);
+        if (rt?.hoverTimer) { clearInterval(rt.hoverTimer); rt.hoverTimer = null; }
+        window.CEU_HOVER = 0;
+        window.CEU_PREVIEW_SEED_FX = null;
+        applyPresetFxToDisplay(state.activePreset, state);
 
         closeT = setTimeout(() => {
           el.classList.remove("is-open");
@@ -803,12 +633,30 @@ a.show()
       const touchBoost = () => {
         // evita ativar se estava arrastando
         if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
-        openSeedBubble(el);
-        startPreviewLoop(post.id, state);
+        if (!window.CEU_LOCKED_SEED_ID) {
+          window.CEU_PREVIEW_SEED_FX = nextSeedFx(state, post.id);
+          window.CEU_HOVER = 0.22 + Math.random() * 0.28;
+          applyPresetFxToDisplay(state.activePreset, state);
+
+          const rt = SEED_RUNTIME.get(post.id);
+          if (rt && !rt.hoverTimer) {
+            rt.hoverTimer = setInterval(() => {
+              if (window.CEU_LOCKED_SEED_ID) return;
+              window.CEU_PREVIEW_SEED_FX = nextSeedFx(state, post.id);
+              window.CEU_HOVER = 0.18 + Math.random() * 0.24;
+              applyPresetFxToDisplay(state.activePreset, state);
+            }, 260);
+          }
+        }
       };
 
       const touchReset = () => {
-        clearPreview(state);
+        // encerra preview
+        const rt = SEED_RUNTIME.get(post.id);
+        if (rt?.hoverTimer) { clearInterval(rt.hoverTimer); rt.hoverTimer = null; }
+        window.CEU_HOVER = 0;
+        window.CEU_PREVIEW_SEED_FX = null;
+        applyPresetFxToDisplay(state.activePreset, state);
       };
 
       // pointer* funciona tanto em iOS/Android modernos quanto desktop
@@ -828,7 +676,7 @@ a.show()
     }
 
     // click/tap:
-    // - 1 clique: fixa o FX atual (lock) nesta bolha
+    // - fixa (som + FX) nesta bolha
     el.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
@@ -836,18 +684,8 @@ a.show()
       if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
 
       openSeedBubble(el);
-
-      // se não houve preview (ex.: click direto), gera um "momento" aleatório
-      if (!window.CEU_SEED_FX || window.CEU_SEED_FX?.seedId !== post.id) {
-        window.CEU_SEED_FX = fxFromPower(post.id, Math.random() * 6.0);
-      }
-
-      // trocar lock só quando clicar em outra bolha
-      if (lockedSeedId !== post.id) {
-        stopPreviewLoop();
-        lockSeedFx(post.id);
-      }
-
+      window.CEU_PREVIEW_SEED_FX = randomFxFromSeed(post.id);
+      window.CEU_HOVER = 0;
       applyPresetFxToDisplay(state.activePreset, state);
     });
 
@@ -951,12 +789,13 @@ a.show()
       runActivePreset(state);
     });
 
-    function resetActiveToDefaultAndRun({ confirmUser = false } = {}) {
+    resetLink?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+
       const id = activeId();
-      if (confirmUser) {
-        const ok = confirm(`Resetar o preset ${id} para o código padrão? Você vai perder as alterações desse preset.`);
-        if (!ok) return false;
-      }
+      const ok = confirm(`Resetar o preset ${id} para o código padrão? Você vai perder as alterações desse preset.`);
+      if (!ok) return;
 
       state.presets[id].code = PRESET_DEFAULTS[id].code;
       state.presets[id].fx = defaultFx();
@@ -964,20 +803,12 @@ a.show()
 
       syncEditorFromState();
       runActivePreset(state);
-      return true;
-    }
-
-    resetLink?.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-
-      resetActiveToDefaultAndRun({ confirmUser: true });
     });
 
     syncEditorFromState();
     enableFloatDragResize(panel);
 
-    return { syncEditorFromState, resetActiveToDefaultAndRun };
+    return { syncEditorFromState };
   }
 
   function enableFloatDragResize(panel) {
@@ -1118,6 +949,7 @@ a.show()
         state.activePreset = id;
         saveState(state);
 
+
         miniApi?.syncEditorFromState?.();
         runActivePreset(state);
         setActiveUI();
@@ -1166,6 +998,8 @@ a.show()
   window.addEventListener("DOMContentLoaded", () => {
     const state = getOrInitState();
 
+    state.seedPowers = state.seedPowers || {};
+
     // refs mural
     const garden = document.getElementById("garden");
 
@@ -1186,18 +1020,27 @@ a.show()
     const viewerMeta = document.getElementById("viewerMeta");
     const viewerEls = { viewer, viewerImg, viewerText, viewerMeta };
 
-    // Clique fora: fecha as bolhas abertas, mas mantém o lock do Hydra.
-    // Além disso, clicar no background volta o mini editor do preset ativo ao padrão.
+    // Fecha bolhas ao clicar em qualquer lugar fora
     document.addEventListener("pointerdown", (e) => {
-      // dentro de um seed: o próprio seed lida
-      if (e.target.closest?.(".seed")) return;
-      closeAllSeedBubbles();
-      clearPreview(state); // fecha preview sem desfazer lock
+      // clique fora da bolha: fecha conteúdo, mas NÃO desfaz o lock
+      if (!e.target.closest?.(".seed")) {
+        closeAllSeedBubbles();
 
-      // somente "background" (fora de UI principal) volta o mini editor ao padrão
-      const clickedUI = e.target.closest?.("dialog, .card, .viewer, #hydraMini, .fabWrap, .presetDock");
-      if (!clickedUI && miniApi?.resetActiveToDefaultAndRun) {
-        miniApi.resetActiveToDefaultAndRun({ confirmUser: false });
+        // encerra preview (se houver)
+        window.CEU_PREVIEW_SEED_FX = null;
+        window.CEU_HOVER = 0;
+        applyPresetFxToDisplay(state.activePreset, state);
+
+        // clique no “background” (fora de UI): volta o código do mini editor ao padrão do preset ativo
+        const clickedUi = e.target.closest?.("#hydraMini, .fabWrap, #presetDock, .topbar, dialog, .dialog, .viewer");
+        if (!clickedUi) {
+          const id = (PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A");
+          state.presets[id].code = PRESET_DEFAULTS[id].code;
+          saveState(state);
+          try { editorApi?.syncEditorFromState?.(); } catch {}
+          runActivePreset(state);
+        }
+        return;
       }
     });
 
@@ -1226,9 +1069,27 @@ a.show()
 
     // Mini editor
     const miniApi = setupMiniEditor(state);
+    const editorApi = miniApi;
 
     // Preset dock (A/B/C/D)
     setupPresetDock(state, miniApi);
+
+    const savedSound = localStorage.getItem("ceu_sound_enabled") === "1";
+    if (savedSound && soundBtn) {
+      // só liga se houver gesto do usuário; atualiza UI, mas não inicia automaticamente
+      soundBtn.textContent = "Som: off";
+      soundBtn.setAttribute("aria-pressed", "false");
+    }
+
+    soundBtn?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      await setSoundEnabled(turningOn);
+      localStorage.setItem("ceu_sound_enabled", turningOn ? "1" : "0");
+      soundBtn.textContent = turningOn ? "Som: on" : "Som: off";
+      soundBtn.setAttribute("aria-pressed", turningOn ? "true" : "false");
+    });
 
     // abrir composer
     openComposer?.addEventListener("click", () => {
