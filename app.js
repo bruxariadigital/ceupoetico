@@ -907,7 +907,6 @@ function applyPresetFxToDisplay(presetId, state) {
 }
 
 async function renderGarden(garden, viewerEls, state) {
-(garden, viewerEls, state) {
     if (!garden) return;
     if (!supabaseReady()) return;
 
