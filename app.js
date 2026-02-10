@@ -306,6 +306,8 @@ a.show()
     basePattern: null,
     overlayPattern: null,
     overlayPreview: null,
+    lockedVariantKey: null,
+    previewVariantKey: null,
   };
 
   function strudelAvailable() {
@@ -335,6 +337,12 @@ a.show()
     return ((h >>> 0) % 10000) / 10000;
   }
 
+
+  function nextVariantKey() {
+    // chave curta para gerar variações "aleatórias" sem depender de estado global
+    return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+
   function buildTrianglePattern(triId) {
     const S = window.CEU_STRUDEL;
     // melodias simples (padrões curtos), com reverb leve para "colar" no ambiente
@@ -344,9 +352,9 @@ a.show()
     return S.note("<a3 c4 e4 g4>(3,8)").s("gm_electric_piano_1").dec(.24).room(.36).gain(.75);
   }
 
-  function buildSeedLayer(seedId, mode) {
+  function buildSeedLayer(seedId, mode, variantKey) {
     const S = window.CEU_STRUDEL;
-    const r = hash01(seedId);
+    const r = hash01(String(seedId) + "::" + String(variantKey || "v0"));
     const scale = r < 0.33 ? "C:minor" : (r < 0.66 ? "D:minor" : "A:minor");
     const inst = r < 0.25 ? "hh" : (r < 0.5 ? "gm_pad_1_new_age" : (r < 0.75 ? "gm_bass_2_finger" : "bd"));
     const dense = r < 0.5 ? 8 : 16;
@@ -373,6 +381,7 @@ a.show()
     STRUDEL.basePattern = null;
     STRUDEL.overlayPattern = null;
     STRUDEL.overlayPreview = null;
+    STRUDEL.previewVariantKey = null;
   }
 
   function playStrudelMix({ triId, lockedSeedId }) {
@@ -389,7 +398,7 @@ a.show()
     base.play();
 
     if (STRUDEL.lockedSeedId) {
-      const layer = buildSeedLayer(STRUDEL.lockedSeedId, "lock");
+      const layer = buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey);
       STRUDEL.overlayPattern = layer;
       layer.play();
     }
@@ -409,12 +418,13 @@ a.show()
         // reconstroi base + lock, depois preview
         const base = buildTrianglePattern(STRUDEL.triangleId);
         base.play();
-        if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").play();
+        if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey).play();
       }
     } catch {}
 
     STRUDEL.previewSeedId = seedId;
-    STRUDEL.overlayPreview = buildSeedLayer(seedId, "preview");
+    STRUDEL.previewVariantKey = nextVariantKey();
+    STRUDEL.overlayPreview = buildSeedLayer(seedId, "preview", STRUDEL.previewVariantKey);
     STRUDEL.overlayPreview.play();
   }
 
@@ -422,6 +432,7 @@ a.show()
     if (!STRUDEL.enabled) return;
     if (!STRUDEL.previewSeedId) return;
     STRUDEL.previewSeedId = null;
+    STRUDEL.previewVariantKey = null;
 
     // volta para base + lock
     playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
@@ -438,7 +449,7 @@ a.show()
       stopStrudelAll();
       const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
       base.play();
-      if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001).play();
+      if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey).gain(0.0001).play();
       setTimeout(() => {
         playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
       }, FADE_MS);
@@ -447,7 +458,7 @@ a.show()
       try {
         const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
         base.play();
-        if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001).play();
+        if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey).gain(0.0001).play();
       } catch {}
       setTimeout(() => {
         stopStrudelAll();
@@ -466,15 +477,13 @@ a.show()
   //   - click trava FX até outra bolha ou clique fora
   // =====================================================
   function randomFxFromSeed(seedId) {
-    const r = hash01(String(seedId) + "::fx");
-    const pick = Math.floor(r * 8);
+    // apesar do nome, aqui queremos "aleatório de verdade" no hover,
+    // e o click trava o que foi sorteado no momento.
+    const r = Math.random();
+    const pick = Math.floor(Math.random() * 8);
     const a = 0.15 + r * 0.55;
-    const b = 1.0 + r * 5.0;
-    return {
-      pick,
-      a,
-      b,
-    };
+    const b = 1.0 + Math.random() * 5.0;
+    return { pick, a, b, seedId: seedId ?? null };
   }
 
   function applyRandomSeedFx(node, fxObj) {
@@ -920,6 +929,7 @@ a.show()
       openSeedBubble(el);
       window.CEU_SEED_FX = randomFxFromSeed(post.id);
       STRUDEL.lockedSeedId = post.id;
+      STRUDEL.lockedVariantKey = nextVariantKey();
       if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: post.id });
       window.CEU_HOVER = 0;
       applyPresetFxToDisplay(state.activePreset, state);
@@ -1264,6 +1274,7 @@ a.show()
 
       // desfaz lock da bolha (som + FX) quando clica fora
       STRUDEL.lockedSeedId = null;
+      STRUDEL.lockedVariantKey = null;
       clearPreviewSeedLayer();
       if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: null });
       window.CEU_SEED_FX = null;
