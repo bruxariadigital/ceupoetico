@@ -303,11 +303,11 @@ a.show()
     triangleId: "A",
     lockedSeedId: null,
     previewSeedId: null,
+    lockedVariantKey: null,
+    previewVariantKey: null,
     basePattern: null,
     overlayPattern: null,
     overlayPreview: null,
-    lockedVariantKey: null,
-    previewVariantKey: null,
   };
 
   function strudelAvailable() {
@@ -334,13 +334,9 @@ a.show()
       h ^= str.charCodeAt(i);
       h = Math.imul(h, 16777619);
     }
+
+  function fract01(x){ return x - Math.floor(x); }
     return ((h >>> 0) % 10000) / 10000;
-  }
-
-
-  function nextVariantKey() {
-    // chave curta para gerar variações "aleatórias" sem depender de estado global
-    return Math.random().toString(36).slice(2) + Date.now().toString(36);
   }
 
   function buildTrianglePattern(triId) {
@@ -354,7 +350,8 @@ a.show()
 
   function buildSeedLayer(seedId, mode, variantKey) {
     const S = window.CEU_STRUDEL;
-    const r = hash01(String(seedId) + "::" + String(variantKey || "v0"));
+    const v = (typeof variantKey === "number" ? variantKey : 0);
+    const r = fract01(hash01(seedId) + v * 0.971);
     const scale = r < 0.33 ? "C:minor" : (r < 0.66 ? "D:minor" : "A:minor");
     const inst = r < 0.25 ? "hh" : (r < 0.5 ? "gm_pad_1_new_age" : (r < 0.75 ? "gm_bass_2_finger" : "bd"));
     const dense = r < 0.5 ? 8 : 16;
@@ -381,10 +378,9 @@ a.show()
     STRUDEL.basePattern = null;
     STRUDEL.overlayPattern = null;
     STRUDEL.overlayPreview = null;
-    STRUDEL.previewVariantKey = null;
   }
 
-  function playStrudelMix({ triId, lockedSeedId }) {
+  function playStrudelMix({ triId, lockedSeedId, lockedVariantKey }) {
     if (!STRUDEL.enabled) return;
     if (!window.CEU_STRUDEL) return;
 
@@ -392,6 +388,8 @@ a.show()
     stopStrudelAll();
     STRUDEL.triangleId = triId;
     STRUDEL.lockedSeedId = lockedSeedId || null;
+    if (!STRUDEL.lockedSeedId) STRUDEL.lockedVariantKey = null;
+    if (typeof lockedVariantKey === "number") STRUDEL.lockedVariantKey = lockedVariantKey;
 
     const base = buildTrianglePattern(triId);
     STRUDEL.basePattern = base;
@@ -408,7 +406,8 @@ a.show()
     if (!STRUDEL.enabled) return;
     if (!window.CEU_STRUDEL) return;
     if (seedId === STRUDEL.lockedSeedId) return;
-    if (seedId === STRUDEL.previewSeedId) return;
+    // mesmo seed pode gerar variações em hovers diferentes
+    if (seedId === STRUDEL.previewSeedId && STRUDEL.previewVariantKey != null) return;
 
     try {
       // prévia: toca uma camada e corta ao sair
@@ -423,7 +422,7 @@ a.show()
     } catch {}
 
     STRUDEL.previewSeedId = seedId;
-    STRUDEL.previewVariantKey = nextVariantKey();
+    STRUDEL.previewVariantKey = Math.random();
     STRUDEL.overlayPreview = buildSeedLayer(seedId, "preview", STRUDEL.previewVariantKey);
     STRUDEL.overlayPreview.play();
   }
@@ -435,7 +434,7 @@ a.show()
     STRUDEL.previewVariantKey = null;
 
     // volta para base + lock
-    playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
+    playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId, lockedVariantKey: STRUDEL.lockedVariantKey });
   }
 
   async function setSoundEnabled(on) {
@@ -451,7 +450,7 @@ a.show()
       base.play();
       if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey).gain(0.0001).play();
       setTimeout(() => {
-        playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
+        playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId, lockedVariantKey: STRUDEL.lockedVariantKey });
       }, FADE_MS);
     } else {
       // fade out: baixa gain, depois hush
@@ -477,13 +476,15 @@ a.show()
   //   - click trava FX até outra bolha ou clique fora
   // =====================================================
   function randomFxFromSeed(seedId) {
-    // apesar do nome, aqui queremos "aleatório de verdade" no hover,
-    // e o click trava o que foi sorteado no momento.
-    const r = Math.random();
-    const pick = Math.floor(Math.random() * 8);
+    const r = hash01(String(seedId) + "::fx");
+    const pick = Math.floor(r * 8);
     const a = 0.15 + r * 0.55;
-    const b = 1.0 + Math.random() * 5.0;
-    return { pick, a, b, seedId: seedId ?? null };
+    const b = 1.0 + r * 5.0;
+    return {
+      pick,
+      a,
+      b,
+    };
   }
 
   function applyRandomSeedFx(node, fxObj) {
@@ -495,8 +496,8 @@ a.show()
       if (p === 2) return node.kaleid(Math.floor(2 + fxObj.b)).rotate(() => fxObj.a * 0.35);
       if (p === 3) return node.pixelate(18 + Math.floor(fxObj.b * 12), 10 + Math.floor(fxObj.b * 6));
       if (p === 4) return node.scrollX(() => fxObj.a * 0.02, () => fxObj.a * 0.01).scrollY(() => -fxObj.a * 0.02, () => fxObj.a * 0.01);
-      if (p === 5) return node.modulateRotate(node, () => fxObj.a * 0.35).contrast(1.0 + fxObj.a * 0.35);
-      if (p === 6) return node.modulateScale(node, () => 0.8 + fxObj.a * 0.8, () => fxObj.a * 0.15);
+      if (p === 5) return node.modulateRotate(osc(3,0.12,0.2), () => fxObj.a * 0.35).contrast(1.0 + fxObj.a * 0.35);
+      if (p === 6) return node.modulateScale(osc(2,0.08,0.15), () => 0.8 + fxObj.a * 0.8, () => fxObj.a * 0.15);
       return node.luma(() => 0.25 + fxObj.a * 0.55, 0.15);
     } catch {
       return node;
@@ -514,7 +515,7 @@ a.show()
     // suaviza “hover-hydra” (menos colorama / menos saturação)
     const h = window.CEU_HOVER || 0;
 
-    const seedFx = window.CEU_SEED_FX || null; // {pick,a,b}
+    const seedFx = window.CEU_PREVIEW_SEED_FX || window.CEU_LOCKED_SEED_FX || null; // {pick,a,b}
 
     try {
       let chain = src(srcBuf);
@@ -866,7 +867,7 @@ a.show()
         // preview strudel + fx randômico (não trava)
         if (STRUDEL.enabled) previewSeedLayer(post.id);
         if (STRUDEL.lockedSeedId !== post.id) {
-          window.CEU_SEED_FX = randomFxFromSeed(post.id);
+          window.CEU_PREVIEW_SEED_FX = randomFxFromSeed(post.id);
         }
         window.CEU_HOVER = 0.28 + Math.random() * 0.45;
         applyPresetFxToDisplay(state.activePreset, state);
@@ -875,7 +876,7 @@ a.show()
       el.addEventListener("pointerleave", () => {
         clearPreviewSeedLayer();
         window.CEU_HOVER = 0;
-        if (STRUDEL.lockedSeedId !== post.id) window.CEU_SEED_FX = null;
+        window.CEU_PREVIEW_SEED_FX = null;
         applyPresetFxToDisplay(state.activePreset, state);
 
         closeT = setTimeout(() => {
@@ -890,7 +891,7 @@ a.show()
         // evita ativar se estava arrastando
         if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
         if (STRUDEL.enabled) previewSeedLayer(post.id);
-        if (STRUDEL.lockedSeedId !== post.id) window.CEU_SEED_FX = randomFxFromSeed(post.id);
+        if (STRUDEL.lockedSeedId !== post.id) window.CEU_PREVIEW_SEED_FX = randomFxFromSeed(post.id);
         window.CEU_HOVER = 0.22 + Math.random() * 0.28;
         applyPresetFxToDisplay(state.activePreset, state);
       };
@@ -898,7 +899,7 @@ a.show()
       const touchReset = () => {
         clearPreviewSeedLayer();
         window.CEU_HOVER = 0;
-        if (STRUDEL.lockedSeedId !== post.id) window.CEU_SEED_FX = null;
+        window.CEU_PREVIEW_SEED_FX = null;
         applyPresetFxToDisplay(state.activePreset, state);
       };
 
@@ -927,10 +928,10 @@ a.show()
       if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
 
       openSeedBubble(el);
-      window.CEU_SEED_FX = randomFxFromSeed(post.id);
+      window.CEU_PREVIEW_SEED_FX = randomFxFromSeed(post.id);
       STRUDEL.lockedSeedId = post.id;
-      STRUDEL.lockedVariantKey = nextVariantKey();
-      if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: post.id });
+      STRUDEL.lockedVariantKey = (STRUDEL.previewVariantKey != null ? STRUDEL.previewVariantKey : Math.random());
+      if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: post.id, lockedVariantKey: STRUDEL.lockedVariantKey });
       window.CEU_HOVER = 0;
       applyPresetFxToDisplay(state.activePreset, state);
     });
@@ -1274,10 +1275,10 @@ a.show()
 
       // desfaz lock da bolha (som + FX) quando clica fora
       STRUDEL.lockedSeedId = null;
-      STRUDEL.lockedVariantKey = null;
       clearPreviewSeedLayer();
-      if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: null });
-      window.CEU_SEED_FX = null;
+      if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: null, lockedVariantKey: null });
+      window.CEU_LOCKED_SEED_FX = null;
+      window.CEU_PREVIEW_SEED_FX = null;
       window.CEU_HOVER = 0;
       applyPresetFxToDisplay(state.activePreset, state);
     });

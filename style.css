@@ -568,6 +568,7 @@ input[type="file"]{
 
 .presetTri{
   position: relative;
+  pointer-events: auto;
   width: 46px;
   height: 46px;
   cursor: pointer;
@@ -616,6 +617,7 @@ input[type="file"]{
 
 .presetTri.is-active{
   border-color: rgba(255,255,255,0.70);
+  filter: drop-shadow(0 0 26px rgba(90,220,255,0.55));
   box-shadow:
     0 28px 110px rgba(0,0,0,0.52),
     0 0 46px rgba(90,220,255,0.55),
