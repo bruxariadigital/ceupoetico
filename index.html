@@ -152,7 +152,9 @@
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://unpkg.com/hydra-synth"></script>
-  <script type="module" src="./strudel.js"></script>
+  <!-- Strudel: UMD build (globals) to avoid ESM export mismatch on some CDNs -->
+  <script defer src="https://unpkg.com/@strudel/web@1.0.3"></script>
+  <script defer src="./strudel.js"></script>
   <script defer src="./app.js"></script>
 </body>
 </html>

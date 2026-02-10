@@ -1,48 +1,74 @@
-// Strudel loader (ESM)
-// Mantém Hydra isolado e expõe uma API mínima em window.CEU_STRUDEL.
-//
-// Nota importante:
-// Em algumas versões/empacotadores, @strudel/web pode não exportar `note`/`s`
-// como named exports. Porém, após `initStrudel()`, o Strudel costuma
-// disponibilizar helpers no escopo global (globalThis).
+/*
+  Strudel bridge (no ESM):
+  - Uses the UMD build loaded via:
+      <script src="https://unpkg.com/@strudel/web@1.0.3"></script>
+  - Captures Strudel globals (note, s, setcps, hush, etc.) into window.CEU_STRUDEL
+  - IMPORTANT: Never rely on window.hush at call sites, to avoid collisions with Hydra's hush.
+*/
 
-import { initStrudel } from 'https://esm.sh/@strudel/web@1.0.3';
+(function () {
+  'use strict';
 
-function pickGlobal(name) {
-  try {
-    const g = (typeof globalThis !== 'undefined') ? globalThis : window;
-    return g && g[name];
-  } catch {
-    return undefined;
+  function pickGlobal(name) {
+    try {
+      const g = (typeof globalThis !== 'undefined') ? globalThis : window;
+      return g && g[name];
+    } catch {
+      return undefined;
+    }
   }
-}
 
-function refreshApiFromGlobals() {
-  // Helpers mais usados no app:
-  const note = pickGlobal('note');
-  const s = pickGlobal('s');
-  const setcps = pickGlobal('setcps');
-  const hush = pickGlobal('hush');
+  function snapshotStrudelGlobals() {
+    // With @strudel/web UMD, these live on globalThis after initStrudel
+    return {
+      initStrudel: pickGlobal('initStrudel'),
+      note: pickGlobal('note'),
+      n: pickGlobal('n'),
+      s: pickGlobal('s'),
+      stack: pickGlobal('stack'),
+      setcps: pickGlobal('setcps'),
+      setcpm: pickGlobal('setcpm'),
+      hush: pickGlobal('hush'),
+    };
+  }
 
-  // Em alguns builds, os helpers podem estar dentro de `Strudel` global.
-  const StrudelGlobal = pickGlobal('Strudel') || pickGlobal('strudel') || null;
+  window.CEU_STRUDEL = {
+    ready: false,
+    _api: snapshotStrudelGlobals(),
 
-  return {
-    note: note || StrudelGlobal?.note,
-    s: s || StrudelGlobal?.s,
-    setcps: setcps || StrudelGlobal?.setcps,
-    hush: hush || StrudelGlobal?.hush,
+    async init() {
+      const api0 = snapshotStrudelGlobals();
+      if (typeof api0.initStrudel !== 'function') {
+        console.warn('[CEU_STRUDEL] initStrudel não encontrado. Verifique se @strudel/web carregou.');
+        return false;
+      }
+
+      // initStrudel must run after a user gesture
+      await api0.initStrudel();
+
+      // refresh snapshot after init
+      const api = snapshotStrudelGlobals();
+      window.CEU_STRUDEL._api = api;
+      window.CEU_STRUDEL.ready = true;
+
+      // safe default tempo
+      try { if (typeof api.setcps === 'function') api.setcps(1); } catch {}
+      return true;
+    },
+
+    // Accessors
+    get note() { return window.CEU_STRUDEL._api.note || window.CEU_STRUDEL._api.n; },
+    get s() { return window.CEU_STRUDEL._api.s; },
+    get stack() { return window.CEU_STRUDEL._api.stack; },
+    get setcps() { return window.CEU_STRUDEL._api.setcps; },
+    get setcpm() { return window.CEU_STRUDEL._api.setcpm; },
+
+    // Stop all patterns — uses captured Strudel hush (never call window.hush elsewhere)
+    stopAll() {
+      try {
+        const h = window.CEU_STRUDEL._api.hush;
+        if (typeof h === 'function') h();
+      } catch {}
+    },
   };
-}
-
-window.CEU_STRUDEL = {
-  initStrudel: async (...args) => {
-    const res = await initStrudel(...args);
-    // após init, atualiza o snapshot dos globals
-    Object.assign(window.CEU_STRUDEL, refreshApiFromGlobals());
-    window.CEU_STRUDEL.ready = true;
-    return res;
-  },
-  ready: false,
-  ...refreshApiFromGlobals(),
-};
+})();

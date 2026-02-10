@@ -286,9 +286,10 @@ a.show()
     window.addEventListener("orientationchange", () => setTimeout(fitHydraCanvasToScreen, 60));
   }
 
-  function hushIfPossible() {
-    try { if (typeof window.hush === "function") window.hush(); } catch {}
-  }
+  // IMPORTANT:
+  // Não use `window.hush()` aqui.
+  // Hydra e Strudel podem expor `hush` no escopo global, e isso causa colisão.
+  // Para atualizar o Hydra, basta reavaliar o código do preset e re-renderizar.
 
   // =====================================================
   // STRUDEL (áudio) — independente do Hydra
@@ -335,7 +336,7 @@ a.show()
 
 
   function strudelAvailable() {
-    return !!window.CEU_STRUDEL && typeof window.CEU_STRUDEL.initStrudel === "function";
+    return !!window.CEU_STRUDEL && typeof window.CEU_STRUDEL.init === "function";
   }
 
   async function ensureStrudelReady() {
@@ -343,9 +344,7 @@ a.show()
     if (!strudelAvailable()) return false;
     try {
       // Strudel precisa iniciar o AudioContext a partir de um gesto do usuário.
-      await window.CEU_STRUDEL.initStrudel();
-      // bpm/cps padrão (evita silêncio por cps=0)
-      try { window.CEU_STRUDEL.setcps?.(1); } catch {}
+      await window.CEU_STRUDEL.init();
       STRUDEL.ready = true;
       return true;
     } catch (e) {
@@ -400,7 +399,7 @@ a.show()
   }
 
   function stopStrudelAll() {
-    try { if (window.CEU_STRUDEL?.hush) window.CEU_STRUDEL.hush(); } catch {}
+    try { window.CEU_STRUDEL?.stopAll?.(); } catch {}
     STRUDEL.basePattern = null;
     STRUDEL.overlayPattern = null;
     STRUDEL.overlayPreview = null;
@@ -439,7 +438,7 @@ a.show()
     STRUDEL.previewVariantKey = variantKey;
 
     // prévia: reconstroi base + lock e toca a preview por cima
-    try { window.CEU_STRUDEL.hush(); } catch {}
+    try { window.CEU_STRUDEL?.stopAll?.(); } catch {}
     try { const b = buildTrianglePattern(STRUDEL.triangleId); if (b && typeof b.play === "function") b.play(); } catch {}
     if (STRUDEL.lockedSeedId) {
       try { buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey || "v0").play(); } catch {}
@@ -560,7 +559,7 @@ a.show()
 
   function runActivePreset(state) {
     initHydraBackground();
-    hushIfPossible();
+    // não fazemos hush global: apenas reavaliamos o preset e aplicamos FX.
 
     const presetId = PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A";
     const code = (state.presets[presetId]?.code || PRESET_DEFAULTS[presetId]?.code || "").trim();
