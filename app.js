@@ -492,8 +492,6 @@ a.show()
       try { STRUDEL.previewHandle = pv.play(); } catch { pv.play(); }
     }
   }
-    try { buildSeedLayer(seedId, "preview", variantKey || "pv0").play(); } catch {}
-  }
 
   function clearPreviewSeedLayer() {
     if (!STRUDEL.enabled) return;
