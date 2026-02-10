@@ -60,6 +60,86 @@
   ============================== */
 
   const PRESET_IDS = ["A", "B", "C", "D"];
+
+  // =====================================================
+// PRESET DEFAULTS (obrigatório para defaultState)
+// =====================================================
+const PRESET_DEFAULTS = {
+  A: {
+    name: "A",
+    renderBuf: "o0",
+    code: `
+s0.initImage("https://image2url.com/r2/default/gifs/1770579272000-56a42137-bb31-4f81-a13e-1a2ab3e05e8b.gif")
+s1.initCam()
+
+src(s0)
+  .mult(src(s1).add(src(s1).scale(1.006)))
+  .modulate(s0, .4)
+  .blend(s0, () => a.fft[1])
+  .out(o0)
+
+a.show()
+`
+  },
+
+  B: {
+    name: "B",
+    renderBuf: "o0",
+    code: `
+s0.initCam()
+speed=.1
+
+src(s0)
+  .blend(src(o0), 0.7)
+  .modulateScale(src(s0), .1)
+  .diff(src(s0).color(1,5,-1), ()=>a.fft[1]*2)
+  .luma()
+  .out(o0)
+
+a.show()
+`
+  },
+
+  C: {
+    name: "C",
+    renderBuf: "o0",
+    code: `
+speed=.3
+
+osc(.33,3.3,3.3)
+  .blend(
+    shape(3, .2,.3).mult(
+      osc(2.3,3.3,3.3)
+        .modulateRotate(osc(3.3,3.3,3.3).hue(3).shift(2))
+        .color(0,0,8)
+    )
+  )
+  .mult(osc(.33,.33,3.3))
+  .modulateScale(noise(3.3))
+  .diff(osc(5.33,.3,4))
+  .mult(shape(3,.3,.2))
+  .out(o0)
+
+a.show()
+`
+  },
+
+  D: {
+    name: "D",
+    renderBuf: "o0",
+    code: `
+s1.initCam()
+
+osc().kaleid(500)
+  .rotate(2, 0.5)
+  .mask(shape(3).rotate(0.2, -0.3))
+  .out(o0)
+
+a.show()
+`
+  }
+};
+
   const DISPLAY_BUF = "o3";
 
   function defaultFx() {
