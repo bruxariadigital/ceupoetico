@@ -472,9 +472,7 @@ function clearLockedSeed(state) {
     window.addEventListener("orientationchange", () => setTimeout(fitHydraCanvasToScreen, 60));
   }
 
-  function hushIfPossible() {
-    try { if (typeof window.hush === "function") window.hush(); } catch {}
-  }
+
 
   function safeEvalHydra(code) {
     (0, eval)(code);
