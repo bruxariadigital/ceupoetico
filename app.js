@@ -310,6 +310,30 @@ a.show()
     overlayPreview: null,
   };
 
+
+  // Cache de variações por bolha/seed:
+  // Cada bolha é responsável por UMA alteração aleatória (FX + som) por triângulo.
+  // A variação é criada na primeira interação e reutilizada nas próximas.
+  const SEED_VARIANTS = {
+    A: new Map(),
+    B: new Map(),
+    C: new Map(),
+    D: new Map(),
+  };
+
+  function ensureSeedVariant(triId, seedId) {
+    const id = PRESET_IDS.includes(triId) ? triId : "A";
+    const map = SEED_VARIANTS[id] || (SEED_VARIANTS[id] = new Map());
+    if (map.has(seedId)) return map.get(seedId);
+
+    const key = `v_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+    const fx = randomFxFromSeed(seedId, key);
+    const payload = { key, fx };
+    map.set(seedId, payload);
+    return payload;
+  }
+
+
   function strudelAvailable() {
     return !!window.CEU_STRUDEL && typeof window.CEU_STRUDEL.initStrudel === "function";
   }
@@ -342,6 +366,16 @@ a.show()
 
   function buildTrianglePattern(triId) {
     const S = window.CEU_STRUDEL;
+    if (!S || typeof S.s !== "function") return null;
+
+    const hasNote = typeof S.note === "function";
+
+    // Fallback seguro: se `note` não estiver disponível, ainda toca uma base percussiva.
+    if (!hasNote) {
+      const base = (triId === "A") ? "bd*4" : (triId === "B") ? "hh*8" : (triId === "C") ? "bd*2 hh*4" : "hh*16";
+      return S.s(base).room(.55).gain(.55);
+    }
+
     // instrumentos bem compatíveis (evita silêncio por soundfont ausente)
     if (triId === "A") return S.note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.22).room(.55).gain(.85);
     if (triId === "B") return S.note("<d4 f4 a4 c5>(3,8)").s("saw").dec(.20).room(.58).gain(.78);
@@ -384,7 +418,7 @@ a.show()
 
     const base = buildTrianglePattern(triId);
     STRUDEL.basePattern = base;
-    base.play();
+    if (base && typeof base.play === "function") base.play();
 
     if (STRUDEL.lockedSeedId) {
       const layer = buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey || "v0");
@@ -406,7 +440,7 @@ a.show()
 
     // prévia: reconstroi base + lock e toca a preview por cima
     try { window.CEU_STRUDEL.hush(); } catch {}
-    try { buildTrianglePattern(STRUDEL.triangleId).play(); } catch {}
+    try { const b = buildTrianglePattern(STRUDEL.triangleId); if (b && typeof b.play === "function") b.play(); } catch {}
     if (STRUDEL.lockedSeedId) {
       try { buildSeedLayer(STRUDEL.lockedSeedId, "lock", STRUDEL.lockedVariantKey || "v0").play(); } catch {}
     }
@@ -432,8 +466,9 @@ a.show()
       STRUDEL.enabled = true;
       // fade in: entra baixinho e re-sobe rápido
       stopStrudelAll();
-      const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
-      base.play();
+      const base0 = buildTrianglePattern(STRUDEL.triangleId);
+      const base = base0 && typeof base0.gain === "function" ? base0.gain(0.0001) : null;
+      if (base && typeof base.play === "function") base.play();
       if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001).play();
       setTimeout(() => {
         playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId, lockedVariantKey: STRUDEL.lockedVariantKey });
@@ -441,8 +476,9 @@ a.show()
     } else {
       // fade out: baixa gain, depois hush
       try {
-        const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
-        base.play();
+        const base0b = buildTrianglePattern(STRUDEL.triangleId);
+        const base = base0b && typeof base0b.gain === "function" ? base0b.gain(0.0001) : null;
+        if (base && typeof base.play === "function") base.play();
         if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001).play();
       } catch {}
       setTimeout(() => {
@@ -854,11 +890,10 @@ a.show()
 
         // preview só se NÃO for a seed já travada
         if (STRUDEL.lockedSeedId !== post.id) {
-          const vKey = `pv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
-          STRUDEL.previewVariantKey = vKey;
-
-          window.CEU_PREVIEW_SEED_FX = randomFxFromSeed(post.id, vKey);
-          if (STRUDEL.enabled) previewSeedLayer(post.id, vKey);
+          const v = ensureSeedVariant(state.activePreset, post.id);
+          STRUDEL.previewVariantKey = v.key;
+          window.CEU_PREVIEW_SEED_FX = v.fx;
+          if (STRUDEL.enabled) previewSeedLayer(post.id, v.key);
         }
 
         window.CEU_HOVER = 0.26 + Math.random() * 0.42;
@@ -883,11 +918,11 @@ a.show()
         if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
         if (STRUDEL.lockedSeedId === post.id) return;
 
-        const vKey = `pv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
-        STRUDEL.previewVariantKey = vKey;
+        const v = ensureSeedVariant(state.activePreset, post.id);
+        STRUDEL.previewVariantKey = v.key;
 
-        window.CEU_PREVIEW_SEED_FX = randomFxFromSeed(post.id, vKey);
-        if (STRUDEL.enabled) previewSeedLayer(post.id, vKey);
+        window.CEU_PREVIEW_SEED_FX = v.fx;
+        if (STRUDEL.enabled) previewSeedLayer(post.id, v.key);
 
         window.CEU_HOVER = 0.18 + Math.random() * 0.26;
         applyPresetFxToDisplay(state.activePreset, state);
@@ -924,16 +959,13 @@ a.show()
 
       openSeedBubble(el);
 
-      // trava FX: se havia preview, trava aquela mesma; senão cria uma nova
-      const lockKey =
-        (STRUDEL.previewSeedId === post.id && STRUDEL.previewVariantKey)
-          ? STRUDEL.previewVariantKey
-          : `lk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+      // trava FX (uma variação por bolha/seed):
+      const v = ensureSeedVariant(state.activePreset, post.id);
 
       STRUDEL.lockedSeedId = post.id;
-      STRUDEL.lockedVariantKey = lockKey;
+      STRUDEL.lockedVariantKey = v.key;
 
-      window.CEU_LOCKED_SEED_FX = randomFxFromSeed(post.id, lockKey);
+      window.CEU_LOCKED_SEED_FX = v.fx;
       window.CEU_PREVIEW_SEED_FX = null;
       window.CEU_HOVER = 0;
 
@@ -1038,6 +1070,25 @@ a.show()
       saveState(state);
 
       runActivePreset(state);
+
+      // Ao rodar pelo mini-editor, voltamos ao "padrão" visual/sonoro:
+      // (mantém o código base do preset, mas limpa locks de bolhas)
+      window.CEU_PREVIEW_SEED_FX = null;
+      window.CEU_LOCKED_SEED_FX = null;
+      window.CEU_HOVER = 0;
+
+      STRUDEL.previewSeedId = null;
+      STRUDEL.previewVariantKey = null;
+      STRUDEL.lockedSeedId = null;
+      STRUDEL.lockedVariantKey = null;
+
+      if (STRUDEL.enabled) {
+        try {
+          playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: null, lockedVariantKey: null });
+        } catch {}
+      }
+
+      applyPresetFxToDisplay(state.activePreset, state);
     });
 
     resetLink?.addEventListener("click", (ev) => {
