@@ -1,5 +1,32 @@
+
 (() => {
   "use strict";
+
+  // ==============================
+// STRUDEL AUDIO STATE (ISOLADO)
+// ==============================
+
+let soundEnabled = false
+let strudelReady = false
+let strudelGain = null
+
+function ensureStrudelGain() {
+  if (!window.Strudel || !window.Strudel.context) return
+
+  if (!strudelGain) {
+    strudelGain = window.Strudel.context.createGain()
+    strudelGain.gain.value = 0
+    strudelGain.connect(window.Strudel.context.destination)
+  }
+}
+function fadeStrudelTo(value, duration = 0.15) {
+  if (!strudelGain) return
+  const ctx = window.Strudel.context
+  const now = ctx.currentTime
+
+  strudelGain.gain.cancelScheduledValues(now)
+  strudelGain.gain.linearRampToValueAtTime(value, now + duration)
+}
 
   // =====================================================
   // CONFIG / STATE (persistência por dispositivo)
@@ -46,7 +73,12 @@
     A: {
       name: "A",
       renderBuf: "o0",
-      code: `// A — PARA VOCÊ, O QUE É SER POTIGUAR?
+      code: `
+// comece mudando os números... com o tempo você vai acabar aprendendo as palavras.
+//lembre sempre dos pontos e dos parenteses...
+
+// A — PARA VOCÊ, O QUE É SER POTIGUAR?
+
 
 s0.initImage("https://image2url.com/r2/default/gifs/1770579272000-56a42137-bb31-4f81-a13e-1a2ab3e05e8b.gif")
 s1.initCam()
@@ -65,7 +97,13 @@ a.show()
     B: {
       name: "B",
       renderBuf: "o0",
-      code: `// B — espelho (base)
+      code: `
+      
+      // comece mudando os números... com o tempo você vai acabar aprendendo as palavras.
+//lembre sempre dos pontos e dos parenteses...
+
+      
+      // B — espelho (base)
 
 s0.initCam()
 speed=.1
@@ -85,7 +123,12 @@ a.show()
     C: {
       name: "C",
       renderBuf: "o0",
-      code: `// C — olá, mundo
+      code: `
+// comece mudando os números... com o tempo você vai acabar aprendendo as palavras.
+//lembre sempre dos pontos e dos parenteses...
+
+      
+      // C — olá, mundo
 speed=.3
 
 osc(.33,3.3,3.3)
@@ -126,7 +169,12 @@ src(o2)
     D: {
       name: "D",
       renderBuf: "o2",
-      code: `// D — espelho
+      code: `// 
+      
+      // comece mudando os números... com o tempo você vai acabar aprendendo as palavras.
+//lembre sempre dos pontos e dos parenteses...
+     
+      D — espelho
 
 s1.initCam()
 
@@ -1228,17 +1276,28 @@ async function renderGarden(garden, viewerEls, state) {
 
 
 // Som (Strudel)
-const soundBtn = document.getElementById("toggleSound");
-const setSoundLabel = () => {
-  if (!soundBtn) return;
-  soundBtn.textContent = STRUDEL.enabled ? "Som: ligado" : "Som: desligado";
-  soundBtn.setAttribute("aria-pressed", STRUDEL.enabled ? "true" : "false");
-};
-setSoundLabel();
+const soundBtn = document.getElementById("soundToggle")
 
-soundBtn?.addEventListener("click", async (ev) => {
-  ev.preventDefault();
-  ev.stopPropagation();
+soundBtn.addEventListener("click", async () => {
+  if (!window.Strudel || !window.Strudel.context) {
+    console.warn("Strudel ainda não carregou")
+    return
+  }
+
+  ensureStrudelGain()
+
+  soundEnabled = !soundEnabled
+  soundBtn.textContent = soundEnabled ? "🔊" : "🔇"
+
+  await window.Strudel.context.resume()
+
+  if (soundEnabled) {
+    fadeStrudelTo(1)
+  } else {
+    fadeStrudelTo(0)
+  }
+})
+
 
   if (!STRUDEL.enabled) {
     const ok = await ensureStrudelReady();
