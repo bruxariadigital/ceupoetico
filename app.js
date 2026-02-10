@@ -1278,7 +1278,7 @@ async function renderGarden(garden, viewerEls, state) {
 // Som (Strudel)
 const soundBtn = document.getElementById("soundToggle")
 
-soundBtn.addEventListener("click", async () => {
+soundBtn.addEventListener("click", () => {
   if (!window.Strudel || !window.Strudel.context) {
     console.warn("Strudel ainda não carregou")
     return
@@ -1289,7 +1289,7 @@ soundBtn.addEventListener("click", async () => {
   soundEnabled = !soundEnabled
   soundBtn.textContent = soundEnabled ? "🔊" : "🔇"
 
-  await window.Strudel.context.resume()
+  window.Strudel.context.resume()
 
   if (soundEnabled) {
     fadeStrudelTo(1)
@@ -1297,6 +1297,7 @@ soundBtn.addEventListener("click", async () => {
     fadeStrudelTo(0)
   }
 })
+
 
 
   if (!STRUDEL.enabled) {
