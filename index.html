@@ -31,7 +31,7 @@
       <button class="presetTri" type="button" data-preset="D" aria-label="Preset D"></button>
     </div>
 
-        <!-- Botões inferiores (centralizados) -->
+    <!-- Botões inferiores (centralizados) -->
     <div class="fabWrap" aria-label="Ações">
       <button id="openComposer" class="fab" type="button" aria-haspopup="dialog">
         Plantar uma semente
@@ -40,7 +40,11 @@
       <button id="openHydraMini" class="fab" type="button">
         Crie
       </button>
-</div>
+
+      <button id="toggleSound" class="fab fab--sound" type="button" aria-pressed="false">
+        Som: off
+      </button>
+    </div>
 
     <!-- Mini editor -->
     <div id="hydraMini" class="hydra-mini" hidden>
@@ -52,8 +56,8 @@
       <textarea id="hydraCode" spellcheck="false"></textarea>
 
       <div class="hydra-mini__actions">
-        <button id="runHydra" class="btn btn--run" type="button">clique-me para rodar o código</button>
         <a id="resetHydra" class="hydra-reset" href="#">Reset códigos</a>
+        <button id="runHydra" class="btn btn--run" type="button">clique-me para rodar o código</button>
       </div>
     </div>
   </main>
@@ -116,7 +120,7 @@
               <strong>Hydra</strong> — sintetizador de vídeo em tempo real (WebGL), usado para o fundo vivo.
               <a href="https://hydra.ojack.xyz/" target="_blank" rel="noopener">hydra.ojack.xyz</a>
             </li>
-<li>
+            <li>
               <strong>IA</strong> — usada como apoio criativo/experimental (rascunhos, testes e variações), sempre com curadoria humana.
             </li>
           </ul>
@@ -141,6 +145,7 @@
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://unpkg.com/hydra-synth"></script>
-<script defer src="./app.js"></script>
+  <script type="module" src="./strudel.js"></script>
+  <script defer src="./app.js"></script>
 </body>
 </html>

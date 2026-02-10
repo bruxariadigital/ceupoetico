@@ -1,6 +1,6 @@
 # Céu Poético (Potiguarias Visuais)
 
-Laboratório experimental de webart com **Hydra** (vídeo ao vivo), **Strudel** (música ao vivo) e um mural de "sementes".
+Laboratório experimental de webart com **Hydra** (vídeo ao vivo) e um mural de "sementes".
 
 ## Rodar localmente
 
@@ -24,35 +24,19 @@ Depois acesse `http://localhost:8000`.
 Este projeto usa bibliotecas externas. Antes de publicar, revise as licenças e exigências:
 
 - **Hydra / hydra-synth**: licença **AGPL-3.0** (copyleft forte).
-- **Strudel (@strudel/web / @strudel/core)**: licença **AGPL-3.0-or-later** (copyleft forte).
 
-Em termos práticos: se você disponibiliza este site na web e ele depende dessas bibliotecas, pode haver obrigação de disponibilizar o código-fonte correspondente (incluindo modificações) para os usuários que acessam o serviço. Como este repositório já fica público no GitHub Pages, isso normalmente atende ao requisito — mas confirme com o texto das licenças.
-
-Links:
-- Hydra: https://hydra.ojack.xyz/
-- Strudel: https://strudel.cc/
-
-Este projeto usa bibliotecas externas:
-
-- **Hydra / hydra-synth** — licença **AGPL-3.0** (upstream: hydra-synth).
-- **Strudel** (`@strudel/web`, `@strudel/core`) — licença **AGPL-3.0-or-later** (upstream: tidalcycles/strudel / codeberg).
-
-Como essas bibliotecas são AGPL, ao publicar um serviço web com elas, em geral você precisa disponibilizar o código-fonte correspondente para quem usa pela rede. Publicar este repositório no GitHub (junto do site) normalmente atende esse requisito, mas confirme com a sua necessidade.
+Em termos práticos: se você disponibiliza este site na web e ele depende de Hydra/hydra-synth, pode haver obrigação de disponibilizar o código-fonte correspondente (incluindo modificações) para os usuários que acessam o serviço. Como este repositório já fica público no GitHub Pages, isso normalmente atende ao requisito — mas confirme com o texto da licença.
 
 Links:
-
 - Hydra: https://hydra.ojack.xyz/
 - Hydra (repo): https://github.com/hydra-synth/hydra
-- Strudel: https://strudel.cc/
-- Strudel (repo): https://github.com/tidalcycles/strudel
 
 ## Controles
 
-- **Triângulos (A/B/C/D)**: muda preset Hydra e (se o som estiver ligado) muda a melodia base do Strudel.
-- **Som: on/off**: liga/desliga o áudio do Strudel (com fade curto para evitar corte seco).
+- **Triângulos (A/B/C/D)**: muda preset Hydra.
 - **Bolhas/sementes**:
-  - hover (desktop) ou press (mobile) = prévia de camada sonora + FX aleatório.
-  - click/toque = trava a camada sonora + trava o FX aleatório.
+  - hover (desktop) ou press (mobile) = prévia de FX no Hydra (temporário, só quando não há lock).
+  - 1 clique/toque = trava o FX atual (lock) até clicar em outra bolha.
   - abrir viewer: **duplo clique** no seed ou botão **"ver"** na bolha.
 - **Reset códigos** no mini editor: reseta **apenas o código local do seu dispositivo** para o padrão do preset.
 
@@ -63,15 +47,11 @@ Troque a constante `BASIC_ADMIN_PASSWORD` no `admin.js` antes de publicar.
 
 ## Licenças / atribuições (importante)
 
-Este projeto usa bibliotecas externas com licença **AGPL-3.0**:
+Este projeto usa **Hydra / hydra-synth** com licença **AGPL-3.0**.
 
-- Hydra / hydra-synth (visual live coding)
-- Strudel (pattern live coding)
-
-Se você publicar um site que disponibiliza essas bibliotecas ao público (ex.: GitHub Pages), a AGPL geralmente requer que o **código-fonte correspondente do serviço** esteja disponível aos usuários.
+Se você publicar um site que disponibiliza essa biblioteca ao público (ex.: GitHub Pages), a AGPL geralmente requer que o **código-fonte correspondente do serviço** esteja disponível aos usuários.
 Manter este repositório público (com o código completo) costuma ser a forma mais simples de atender a isso.
 
-Links:
+Link:
 
 - Hydra: https://hydra.ojack.xyz/
-- Strudel: https://strudel.cc/
