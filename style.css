@@ -568,11 +568,12 @@ input[type="file"]{
 
 .presetTri{
   position: relative;
+  pointer-events: auto;
   width: 46px;
   height: 46px;
   cursor: pointer;
 
-  border: 1px solid rgba(255,255,255,0.28);
+  border: 1.5px solid rgba(255,255,255,0.34);
   background:
     radial-gradient(120% 140% at 22% 0%, rgba(255,255,255,0.18), transparent 55%),
     linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06));
@@ -616,6 +617,7 @@ input[type="file"]{
 
 .presetTri.is-active{
   border-color: rgba(255,255,255,0.70);
+  filter: drop-shadow(0 0 26px rgba(90,220,255,0.55));
   box-shadow:
     0 28px 110px rgba(0,0,0,0.52),
     0 0 46px rgba(90,220,255,0.55),

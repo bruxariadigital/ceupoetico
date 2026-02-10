@@ -41,6 +41,13 @@
   const DISPLAY_BUF = "o3";
   const PRESET_IDS = ["A", "B", "C", "D"];
 
+  // Seed FX lock state
+  window.CEU_LOCKED_SEED_ID = window.CEU_LOCKED_SEED_ID || null;
+  window.CEU_LOCKED_SEED_FX = window.CEU_LOCKED_SEED_FX || null;
+  window.CEU_PREVIEW_SEED_FX = null;
+  window.CEU_HOVER = 0;
+
+
   const PRESET_DEFAULTS = {
     // A: (novo) — PARA VOCÊ, O QUE É SER POTIGUAR?
     A: {
@@ -175,7 +182,8 @@ a.show()
     return {
       userKey: getUserKey(),
       activePreset: "A",
-      presets
+      presets,
+      seedPowers: {}
     };
   }
 
@@ -286,312 +294,15 @@ a.show()
     window.addEventListener("orientationchange", () => setTimeout(fitHydraCanvasToScreen, 60));
   }
 
-  // Nunca use hush() global: Hydra e Strudel podem expor hush() e colidir.
-  // Controle de áudio é feito por handles/pattern.stop().
+  function hushIfPossible() {
+    try { if (typeof window.hush === "function") window.hush(); } catch {}
+  }
 
   // =====================================================
-  // STRUDEL (áudio) — independente do Hydra
   // - clique no triângulo = melodia base diferente
   // - hover na bolha = prévia de camada (não fixa)
   // - clique na bolha = fixa camada (som + FX)
   // - "Som: on/off" com fade curto (sem corte seco)
-  // =====================================================
-  const STRUDEL = {
-    ready: false,
-    enabled: false,
-    triangleId: "A",
-    lockedSeedId: null,
-    previewSeedId: null,
-    basePattern: null,
-    overlayPattern: null,
-    overlayPreview: null,
-    handles: [],
-  };
-
-  function strudelAvailable() {
-    return !!window.CEU_STRUDEL && typeof window.CEU_STRUDEL.init === "function";
-  }
-
-  async function ensureStrudelReady() {
-    if (STRUDEL.ready) return true;
-    if (!strudelAvailable()) return false;
-    try {
-      await window.CEU_STRUDEL.init();
-      STRUDEL.ready = true;
-
-      // cps padrão (se existir)
-      try { window.CEU_STRUDEL.api?.setcps?.(1); } catch {}
-      return true;
-    } catch (e) {
-      console.warn("Strudel init falhou:", e);
-      return false;
-    }
-  }
-
-  function stopHandle(h) {
-    try {
-      if (!h) return;
-      if (typeof h.stop === 'function') { h.stop(); return; }
-      // fallback: às vezes o próprio pattern tem .stop()
-      if (typeof h === 'object' && typeof h?.pattern?.stop === 'function') { h.pattern.stop(); }
-    } catch {}
-  }
-
-  function stopAllStrudel() {
-    // NUNCA usar hush() aqui (colide com Hydra)
-    STRUDEL.handles.forEach(stopHandle);
-    STRUDEL.handles = [];
-    STRUDEL.basePattern = null;
-    STRUDEL.overlayPattern = null;
-    STRUDEL.overlayPreview = null;
-  }
-
-  function hash01(str) {
-    // 0..1 determinístico
-    let h = 2166136261;
-    for (let i = 0; i < str.length; i++) {
-      h ^= str.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    return ((h >>> 0) % 10000) / 10000;
-  }
-
-  function buildTrianglePattern(triId) {
-    const api = window.CEU_STRUDEL?.api;
-    if (!api?.n) throw new Error('Strudel API n() indisponível');
-
-    // melodias por triângulo via graus (escala) — evita depender de note()
-    if (triId === "A") return api.n("<0 2 4 6>(3,8)").scale("C:minor").s("sine").dec(.25).room(.35).gain(.85);
-    if (triId === "B") return api.n("<0 2 4 7>(3,8)").scale("D:minor").s("saw").dec(.22).room(.38).gain(.78);
-    if (triId === "C") return api.n("<0 2 4 7>(5,8)").scale("E:minor").s("gm_lead_1_square").dec(.20).room(.32).gain(.80);
-    return api.n("<0 2 4 6>(3,8)").scale("A:minor").s("gm_electric_piano_1").dec(.24).room(.36).gain(.75);
-  }
-
-  function buildSeedLayer(seedId, mode) {
-    const api = window.CEU_STRUDEL?.api;
-    if (!api?.s || !api?.n) throw new Error('Strudel API s()/n() indisponível');
-    const r = hash01(seedId);
-    const scale = r < 0.33 ? "C:minor" : (r < 0.66 ? "D:minor" : "A:minor");
-    const inst = r < 0.25 ? "hh" : (r < 0.5 ? "gm_pad_1_new_age" : (r < 0.75 ? "gm_bass_2_finger" : "bd"));
-    const dense = r < 0.5 ? 8 : 16;
-    const g = mode === "preview" ? 0.55 : 0.70;
-    const rm = mode === "preview" ? 0.55 : 0.70; // mais cauda no lock
-
-    // camada: ou percussão curta ou notas tonais
-    if (inst === "hh" || inst === "bd") {
-      return api.s(`${inst}*${dense}`)
-        .gain(g)
-        .room(rm);
-    }
-
-    return api.n("<0 2 4 7>*4")
-      .scale(scale)
-      .s(inst)
-      .dec(.18)
-      .gain(g)
-      .room(rm);
-  }
-
-  function playStrudelMix({ triId, lockedSeedId }) {
-    if (!STRUDEL.enabled) return;
-    if (!window.CEU_STRUDEL) return;
-
-    // rebuild sem hush (para não afetar Hydra)
-    stopAllStrudel();
-    STRUDEL.triangleId = triId;
-    STRUDEL.lockedSeedId = lockedSeedId || null;
-
-    const base = buildTrianglePattern(triId);
-    STRUDEL.basePattern = base;
-    const baseHandle = base.play?.();
-    STRUDEL.handles.push(baseHandle || base);
-
-    if (STRUDEL.lockedSeedId) {
-      const layer = buildSeedLayer(STRUDEL.lockedSeedId, "lock");
-      STRUDEL.overlayPattern = layer;
-      const h = layer.play?.();
-      STRUDEL.handles.push(h || layer);
-    }
-  }
-
-  function previewSeedLayer(seedId) {
-    if (!STRUDEL.enabled) return;
-    if (!window.CEU_STRUDEL) return;
-    if (seedId === STRUDEL.lockedSeedId) return;
-    if (seedId === STRUDEL.previewSeedId) return;
-
-    // substitui sem acumular: paramos tudo e reconstruímos base + lock + preview.
-    // (sem hush)
-    try {
-      stopAllStrudel();
-      const base = buildTrianglePattern(STRUDEL.triangleId);
-      STRUDEL.basePattern = base;
-      const hb = base.play?.();
-      STRUDEL.handles.push(hb || base);
-      if (STRUDEL.lockedSeedId) {
-        const lockLayer = buildSeedLayer(STRUDEL.lockedSeedId, "lock");
-        STRUDEL.overlayPattern = lockLayer;
-        const hl = lockLayer.play?.();
-        STRUDEL.handles.push(hl || lockLayer);
-      }
-    } catch {}
-
-    STRUDEL.previewSeedId = seedId;
-    STRUDEL.overlayPreview = buildSeedLayer(seedId, "preview");
-    const hp = STRUDEL.overlayPreview.play?.();
-    STRUDEL.handles.push(hp || STRUDEL.overlayPreview);
-  }
-
-  function clearPreviewSeedLayer() {
-    if (!STRUDEL.enabled) return;
-    if (!STRUDEL.previewSeedId) return;
-    STRUDEL.previewSeedId = null;
-
-    // volta para base + lock
-    playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-  }
-
-  async function setSoundEnabled(on) {
-    const ok = await ensureStrudelReady();
-    if (!ok) return;
-
-    const FADE_MS = 120;
-    if (on) {
-      STRUDEL.enabled = true;
-      // fade in: entra baixinho e re-sobe rápido
-      stopAllStrudel();
-      const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
-      const hb = base.play?.();
-      STRUDEL.handles.push(hb || base);
-      if (STRUDEL.lockedSeedId) {
-        const lockLayer = buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001);
-        const hl = lockLayer.play?.();
-        STRUDEL.handles.push(hl || lockLayer);
-      }
-      setTimeout(() => {
-        playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-      }, FADE_MS);
-    } else {
-      // fade out: baixa gain, depois hush
-      try {
-        const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
-        base.play();
-        if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001).play();
-      } catch {}
-      setTimeout(() => {
-        stopAllStrudel();
-        STRUDEL.enabled = false;
-      }, FADE_MS);
-    }
-  }
-
-  function safeEvalHydra(code) {
-    (0, eval)(code);
-  }
-
-  // =====================================================
-  // Hydra FX aleatório por bolha (hover/click)
-  //   - hover aplica FX randômico
-  //   - click trava FX até outra bolha ou clique fora
-  // =====================================================
-  function randomFxFromSeed(seedId) {
-    const r = hash01(String(seedId) + "::fx");
-    const pick = Math.floor(r * 8);
-    const a = 0.15 + r * 0.55;
-    const b = 1.0 + r * 5.0;
-    return {
-      pick,
-      a,
-      b,
-    };
-  }
-
-  function applyRandomSeedFx(node, fxObj) {
-    if (!fxObj) return node;
-    const p = fxObj.pick % 8;
-    try {
-      if (p === 0) return node.invert(fxObj.a);
-      if (p === 1) return node.posterize(Math.floor(2 + fxObj.b), 0.6);
-      if (p === 2) return node.kaleid(Math.floor(2 + fxObj.b)).rotate(() => fxObj.a * 0.35);
-      if (p === 3) return node.pixelate(18 + Math.floor(fxObj.b * 12), 10 + Math.floor(fxObj.b * 6));
-      if (p === 4) return node.scrollX(() => fxObj.a * 0.02, () => fxObj.a * 0.01).scrollY(() => -fxObj.a * 0.02, () => fxObj.a * 0.01);
-      // Evitar auto-modulação (node modulando node) pois pode causar recursão/Glsl crash.
-      if (p === 5) return node.modulateRotate(osc(5, 0.02, 0.8), () => fxObj.a * 0.35).contrast(1.0 + fxObj.a * 0.35);
-      if (p === 6) return node.modulateScale(osc(4, 0.03, 0.9), () => 0.8 + fxObj.a * 0.8, () => fxObj.a * 0.15);
-      return node.luma(() => 0.25 + fxObj.a * 0.55, 0.15);
-    } catch {
-      return node;
-    }
-  }
-
-  function applyPresetFxToDisplay(presetId, state) {
-    const meta = PRESET_DEFAULTS[presetId] || PRESET_DEFAULTS.A;
-    const srcName = meta.renderBuf || "o0";
-    const srcBuf = globalThis[srcName] || globalThis.o0;
-    const outBuf = globalThis[DISPLAY_BUF] || globalThis.o3;
-
-    const fx = state.presets[presetId]?.fx || defaultFx();
-
-    // suaviza “hover-hydra” (menos colorama / menos saturação)
-    const h = window.CEU_HOVER || 0;
-
-    const seedFx = window.CEU_SEED_FX || null; // {pick,a,b}
-
-    try {
-      let chain = src(srcBuf);
-      chain = applyRandomSeedFx(chain, seedFx);
-
-      chain
-        .contrast(() => fx.contrast + h * 0.14)
-        .saturate(() => fx.saturate + h * 0.22)
-        .brightness(() => fx.brightness + h * 0.05)
-        .colorama(() => fx.colorama + h * 0.16)
-        .out(outBuf);
-
-      if (typeof window.render === "function") window.render(outBuf);
-    } catch (e) {
-      console.warn("FX falhou (ignorado):", e);
-    }
-  }
-
-  function runActivePreset(state) {
-    initHydraBackground();
-
-    const presetId = PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A";
-    const code = (state.presets[presetId]?.code || PRESET_DEFAULTS[presetId]?.code || "").trim();
-    if (!code) return;
-
-    try {
-      safeEvalHydra(code);
-    } catch (e) {
-      console.error(e);
-      alert("Erro no código Hydra do preset ativo. Veja o console.");
-      return;
-    }
-
-    applyPresetFxToDisplay(presetId, state);
-  }
-
-  // =====================================================
-  // SEEDS: plantar altera FX aleatório do preset ativo
-  // =====================================================
-  function mutateFxOnPlant(state) {
-    const id = PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A";
-    const fx = state.presets[id]?.fx || defaultFx();
-
-    const pick = Math.floor(Math.random() * 4);
-
-    if (pick === 0) fx.contrast   = clamp(fx.contrast + (Math.random() * 0.22), 0.75, 2.1);
-    if (pick === 1) fx.saturate   = clamp(fx.saturate + (Math.random() * 0.28), 0.70, 2.20);
-    if (pick === 2) fx.brightness = clamp(fx.brightness + (Math.random() * 0.06 - 0.02), -0.22, 0.28);
-    if (pick === 3) fx.colorama   = clamp(fx.colorama + (Math.random() * 0.18), 0, 1.20);
-
-    state.presets[id].fx = fx;
-    saveState(state);
-
-    applyPresetFxToDisplay(id, state);
-  }
-
   // =====================================================
   // SUPABASE (mural)
   // =====================================================
@@ -883,19 +594,32 @@ a.show()
         clearTimeout(closeT);
         openSeedBubble(el);
 
-        // preview strudel + fx randômico (não trava)
-        if (STRUDEL.enabled) previewSeedLayer(post.id);
-        if (STRUDEL.lockedSeedId !== post.id) {
-          window.CEU_SEED_FX = randomFxFromSeed(post.id);
+        // hover = preview temporário (só funciona se não houver lock)
+        if (!window.CEU_LOCKED_SEED_ID) {
+          const fx = nextSeedFx(state, post.id);
+          window.CEU_PREVIEW_SEED_FX = fx;
+          window.CEU_HOVER = 0.28 + Math.random() * 0.45;
+          applyPresetFxToDisplay(state.activePreset, state);
+
+          // “movimento”: atualiza parâmetros enquanto o hover estiver ativo
+          const rt = SEED_RUNTIME.get(post.id);
+          if (rt && !rt.hoverTimer) {
+            rt.hoverTimer = setInterval(() => {
+              if (window.CEU_LOCKED_SEED_ID) return; // se travou no meio, para
+              window.CEU_PREVIEW_SEED_FX = nextSeedFx(state, post.id);
+              window.CEU_HOVER = 0.24 + Math.random() * 0.42;
+              applyPresetFxToDisplay(state.activePreset, state);
+            }, 240);
+          }
         }
-        window.CEU_HOVER = 0.28 + Math.random() * 0.45;
-        applyPresetFxToDisplay(state.activePreset, state);
       });
 
       el.addEventListener("pointerleave", () => {
-        clearPreviewSeedLayer();
+        // encerra preview
+        const rt = SEED_RUNTIME.get(post.id);
+        if (rt?.hoverTimer) { clearInterval(rt.hoverTimer); rt.hoverTimer = null; }
         window.CEU_HOVER = 0;
-        if (STRUDEL.lockedSeedId !== post.id) window.CEU_SEED_FX = null;
+        window.CEU_PREVIEW_SEED_FX = null;
         applyPresetFxToDisplay(state.activePreset, state);
 
         closeT = setTimeout(() => {
@@ -909,16 +633,29 @@ a.show()
       const touchBoost = () => {
         // evita ativar se estava arrastando
         if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
-        if (STRUDEL.enabled) previewSeedLayer(post.id);
-        if (STRUDEL.lockedSeedId !== post.id) window.CEU_SEED_FX = randomFxFromSeed(post.id);
-        window.CEU_HOVER = 0.22 + Math.random() * 0.28;
-        applyPresetFxToDisplay(state.activePreset, state);
+        if (!window.CEU_LOCKED_SEED_ID) {
+          window.CEU_PREVIEW_SEED_FX = nextSeedFx(state, post.id);
+          window.CEU_HOVER = 0.22 + Math.random() * 0.28;
+          applyPresetFxToDisplay(state.activePreset, state);
+
+          const rt = SEED_RUNTIME.get(post.id);
+          if (rt && !rt.hoverTimer) {
+            rt.hoverTimer = setInterval(() => {
+              if (window.CEU_LOCKED_SEED_ID) return;
+              window.CEU_PREVIEW_SEED_FX = nextSeedFx(state, post.id);
+              window.CEU_HOVER = 0.18 + Math.random() * 0.24;
+              applyPresetFxToDisplay(state.activePreset, state);
+            }, 260);
+          }
+        }
       };
 
       const touchReset = () => {
-        clearPreviewSeedLayer();
+        // encerra preview
+        const rt = SEED_RUNTIME.get(post.id);
+        if (rt?.hoverTimer) { clearInterval(rt.hoverTimer); rt.hoverTimer = null; }
         window.CEU_HOVER = 0;
-        if (STRUDEL.lockedSeedId !== post.id) window.CEU_SEED_FX = null;
+        window.CEU_PREVIEW_SEED_FX = null;
         applyPresetFxToDisplay(state.activePreset, state);
       };
 
@@ -947,9 +684,7 @@ a.show()
       if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
 
       openSeedBubble(el);
-      window.CEU_SEED_FX = randomFxFromSeed(post.id);
-      STRUDEL.lockedSeedId = post.id;
-      if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: post.id });
+      window.CEU_PREVIEW_SEED_FX = randomFxFromSeed(post.id);
       window.CEU_HOVER = 0;
       applyPresetFxToDisplay(state.activePreset, state);
     });
@@ -1214,9 +949,6 @@ a.show()
         state.activePreset = id;
         saveState(state);
 
-        // Strudel: cada triângulo tem sua melodia base
-        STRUDEL.triangleId = id;
-        if (STRUDEL.enabled) playStrudelMix({ triId: id, lockedSeedId: STRUDEL.lockedSeedId });
 
         miniApi?.syncEditorFromState?.();
         runActivePreset(state);
@@ -1266,6 +998,8 @@ a.show()
   window.addEventListener("DOMContentLoaded", () => {
     const state = getOrInitState();
 
+    state.seedPowers = state.seedPowers || {};
+
     // refs mural
     const garden = document.getElementById("garden");
 
@@ -1288,16 +1022,26 @@ a.show()
 
     // Fecha bolhas ao clicar em qualquer lugar fora
     document.addEventListener("pointerdown", (e) => {
-      if (e.target.closest?.(".seed")) return;
-      closeAllSeedBubbles();
+      // clique fora da bolha: fecha conteúdo, mas NÃO desfaz o lock
+      if (!e.target.closest?.(".seed")) {
+        closeAllSeedBubbles();
 
-      // desfaz lock da bolha (som + FX) quando clica fora
-      STRUDEL.lockedSeedId = null;
-      clearPreviewSeedLayer();
-      if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: null });
-      window.CEU_SEED_FX = null;
-      window.CEU_HOVER = 0;
-      applyPresetFxToDisplay(state.activePreset, state);
+        // encerra preview (se houver)
+        window.CEU_PREVIEW_SEED_FX = null;
+        window.CEU_HOVER = 0;
+        applyPresetFxToDisplay(state.activePreset, state);
+
+        // clique no “background” (fora de UI): volta o código do mini editor ao padrão do preset ativo
+        const clickedUi = e.target.closest?.("#hydraMini, .fabWrap, #presetDock, .topbar, dialog, .dialog, .viewer");
+        if (!clickedUi) {
+          const id = (PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A");
+          state.presets[id].code = PRESET_DEFAULTS[id].code;
+          saveState(state);
+          try { editorApi?.syncEditorFromState?.(); } catch {}
+          runActivePreset(state);
+        }
+        return;
+      }
     });
 
     // Desencorajar “download fácil” (não impede 100%)
@@ -1325,14 +1069,12 @@ a.show()
 
     // Mini editor
     const miniApi = setupMiniEditor(state);
+    const editorApi = miniApi;
 
     // Preset dock (A/B/C/D)
     setupPresetDock(state, miniApi);
 
-    // Som (Strudel)
-    const soundBtn = document.getElementById("toggleSound");
     const savedSound = localStorage.getItem("ceu_sound_enabled") === "1";
-    STRUDEL.triangleId = state.activePreset;
     if (savedSound && soundBtn) {
       // só liga se houver gesto do usuário; atualiza UI, mas não inicia automaticamente
       soundBtn.textContent = "Som: off";
@@ -1343,7 +1085,6 @@ a.show()
       e.preventDefault();
       e.stopPropagation();
 
-      const turningOn = !STRUDEL.enabled;
       await setSoundEnabled(turningOn);
       localStorage.setItem("ceu_sound_enabled", turningOn ? "1" : "0");
       soundBtn.textContent = turningOn ? "Som: on" : "Som: off";
