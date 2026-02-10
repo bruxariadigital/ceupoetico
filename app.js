@@ -251,48 +251,29 @@ a.show()
 
   window.CEU_HOVER = 0;
 
+  // =====================================================
+  // HYDRA (módulo)
+  // =====================================================
+
+  window.CEU_HOVER = 0;
+
   function fitHydraCanvasToScreen() {
-    const canvas = document.getElementById("hydra-canvas");
-    if (!canvas) return;
-
-    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-    const w = Math.floor(window.innerWidth * dpr);
-    const h = Math.floor(window.innerHeight * dpr);
-
-    if (canvas.width !== w) canvas.width = w;
-    if (canvas.height !== h) canvas.height = h;
-
-    canvas.style.width = "100vw";
-    canvas.style.height = "100vh";
-
-    try {
-      if (hydraInstance?.setResolution) hydraInstance.setResolution(w, h);
-    } catch {}
+    window.CEU_HYDRA?.fit?.();
   }
 
   function initHydraBackground() {
-    if (hydraReady) return;
-    if (typeof window.Hydra === "undefined") return;
-
-    const canvas = document.getElementById("hydra-canvas");
-    if (!canvas) return;
-
-    // eslint-disable-next-line no-undef
-    hydraInstance = new Hydra({ canvas, detectAudio: true, makeGlobal: true });
-    hydraReady = true;
-
-    fitHydraCanvasToScreen();
-    window.addEventListener("resize", fitHydraCanvasToScreen);
-    window.addEventListener("orientationchange", () => setTimeout(fitHydraCanvasToScreen, 60));
+    // mantém a mesma assinatura/uso do resto do app
+    window.CEU_HYDRA?.init?.({ canvasId: "hydra-canvas" });
   }
 
   function hushIfPossible() {
-    try { if (typeof window.hush === "function") window.hush(); } catch {}
+    window.CEU_HYDRA?.hush?.();
   }
 
   function safeEvalHydra(code) {
-    (0, eval)(code);
+    window.CEU_HYDRA?.eval?.(code);
   }
+
 
   function applyPresetFxToDisplay(presetId, state) {
     const meta = PRESET_DEFAULTS[presetId] || PRESET_DEFAULTS.A;
