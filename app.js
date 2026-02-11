@@ -2,6 +2,30 @@
   "use strict";
 
   // =====================================================
+  // HELPERS
+  // =====================================================
+
+  // hash determinístico (string -> [0,1))
+  function hash01(str) {
+    // FNV-1a 32-bit
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    // >>>0 para unsigned; divide por 2^32
+    return (h >>> 0) / 4294967296;
+  }
+
+  // Executa código Hydra no escopo global (para funcionar com osc(), shape(), etc.)
+  function safeEvalHydra(code) {
+    const src = String(code || "");
+    // Indirect eval = escopo global
+    (0, eval)(src);
+  }
+
+
+  // =====================================================
   // CONFIG / STATE (persistência por dispositivo)
   // =====================================================
   const STORAGE_KEY = "CEUPOETICO_STATE_V5";
