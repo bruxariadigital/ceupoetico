@@ -2,6 +2,17 @@
   "use strict";
 
   // =====================================================
+  // FX lock por bolha (seed)
+  // - Preview: efeito temporário (hover desktop / tap 1x no mobile)
+  // - Lock: efeito fixo até remover (dblclick no background)
+  // Observação: usamos window.CEU_SEED_FX e window.CEU_HOVER já existentes
+  // para manter a integração com o pipeline de FX atual.
+  let LOCKED_SEED_ID = null;
+  let LOCKED_FX = null;
+  let PREVIEW_SEED_ID = null;
+  let PREVIEW_FX = null;
+
+  // =====================================================
   // CONFIG / STATE (persistência por dispositivo)
   // =====================================================
   const STORAGE_KEY = "CEUPOETICO_STATE_V5";
@@ -250,7 +261,6 @@ a.show()
   let hydraInstance = null;
 
   window.CEU_HOVER = 0;
-  window.CEU_HOVER_FX = { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
 
   function fitHydraCanvasToScreen() {
     const canvas = document.getElementById("hydra-canvas");
@@ -291,8 +301,208 @@ a.show()
     try { if (typeof window.hush === "function") window.hush(); } catch {}
   }
 
+  // =====================================================
+  // STRUDEL (áudio) — independente do Hydra
+  // - clique no triângulo = melodia base diferente
+  // - hover na bolha = prévia de camada (não fixa)
+  // - clique na bolha = fixa camada (som + FX)
+  // - "Som: on/off" com fade curto (sem corte seco)
+  // =====================================================
+  const STRUDEL = {
+    ready: false,
+    enabled: false,
+    triangleId: "A",
+    lockedSeedId: null,
+    previewSeedId: null,
+    basePattern: null,
+    overlayPattern: null,
+    overlayPreview: null,
+  };
+
+  function strudelAvailable() {
+    return !!window.CEU_STRUDEL && typeof window.CEU_STRUDEL.init === "function";
+  }
+
+  async function ensureStrudelReady() {
+    if (STRUDEL.ready) return true;
+    if (!strudelAvailable()) return false;
+    try {
+      await window.CEU_STRUDEL.init();
+      STRUDEL.ready = true;
+      return true;
+    } catch (e) {
+      console.warn("Strudel init falhou:", e);
+      return false;
+    }
+  }
+
+  function hash01(str) {
+    // 0..1 determinístico
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return ((h >>> 0) % 10000) / 10000;
+  }
+
+  function buildTrianglePattern(triId) {
+    const S = window.CEU_STRUDEL;
+    // melodias simples (padrões curtos), com reverb leve para "colar" no ambiente
+    if (triId === "A") return S.note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85);
+    if (triId === "B") return S.note("<d4 f4 a4 c5>(3,8)").s("saw").dec(.22).room(.38).gain(.78);
+    if (triId === "C") return S.note("<e4 g4 b4 d5>(3,8)").s("gm_lead_1_square").dec(.20).room(.32).gain(.80);
+    return S.note("<a3 c4 e4 g4>(3,8)").s("gm_electric_piano_1").dec(.24).room(.36).gain(.75);
+  }
+
+  function buildSeedLayer(seedId, mode) {
+    const S = window.CEU_STRUDEL;
+    const r = hash01(seedId);
+    const scale = r < 0.33 ? "C:minor" : (r < 0.66 ? "D:minor" : "A:minor");
+    const inst = r < 0.25 ? "hh" : (r < 0.5 ? "gm_pad_1_new_age" : (r < 0.75 ? "gm_bass_2_finger" : "bd"));
+    const dense = r < 0.5 ? 8 : 16;
+    const g = mode === "preview" ? 0.55 : 0.70;
+    const rm = mode === "preview" ? 0.55 : 0.70; // mais cauda no lock
+
+    // camada: ou percussão curta ou notas tonais
+    if (inst === "hh" || inst === "bd") {
+      return S.s(`${inst}*${dense}`)
+        .gain(g)
+        .room(rm);
+    }
+
+    return S.n("<0 2 4 7>*4")
+      .scale(scale)
+      .s(inst)
+      .dec(.18)
+      .gain(g)
+      .room(rm);
+  }
+
+  function stopStrudelAll() {
+    try { if (window.CEU_STRUDEL?.hush) window.CEU_STRUDEL.hush(); } catch {}
+    STRUDEL.basePattern = null;
+    STRUDEL.overlayPattern = null;
+    STRUDEL.overlayPreview = null;
+  }
+
+  function playStrudelMix({ triId, lockedSeedId }) {
+    if (!STRUDEL.enabled) return;
+    if (!window.CEU_STRUDEL) return;
+
+    // rebuild: hush + play
+    stopStrudelAll();
+    STRUDEL.triangleId = triId;
+    STRUDEL.lockedSeedId = lockedSeedId || null;
+
+    const base = buildTrianglePattern(triId);
+    STRUDEL.basePattern = base;
+    base.play();
+
+    if (STRUDEL.lockedSeedId) {
+      const layer = buildSeedLayer(STRUDEL.lockedSeedId, "lock");
+      STRUDEL.overlayPattern = layer;
+      layer.play();
+    }
+  }
+
+  function previewSeedLayer(seedId) {
+    if (!STRUDEL.enabled) return;
+    if (!window.CEU_STRUDEL) return;
+    if (seedId === STRUDEL.lockedSeedId) return;
+    if (seedId === STRUDEL.previewSeedId) return;
+
+    try {
+      // prévia: toca uma camada e corta ao sair
+      if (STRUDEL.overlayPreview) {
+        // substitui sem acumular
+        window.CEU_STRUDEL.hush();
+        // reconstroi base + lock, depois preview
+        const base = buildTrianglePattern(STRUDEL.triangleId);
+        base.play();
+        if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").play();
+      }
+    } catch {}
+
+    STRUDEL.previewSeedId = seedId;
+    STRUDEL.overlayPreview = buildSeedLayer(seedId, "preview");
+    STRUDEL.overlayPreview.play();
+  }
+
+  function clearPreviewSeedLayer() {
+    if (!STRUDEL.enabled) return;
+    if (!STRUDEL.previewSeedId) return;
+    STRUDEL.previewSeedId = null;
+
+    // volta para base + lock
+    playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
+  }
+
+  async function setSoundEnabled(on) {
+    const ok = await ensureStrudelReady();
+    if (!ok) return;
+
+    const FADE_MS = 120;
+    if (on) {
+      STRUDEL.enabled = true;
+      // fade in: entra baixinho e re-sobe rápido
+      stopStrudelAll();
+      const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
+      base.play();
+      if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001).play();
+      setTimeout(() => {
+        playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
+      }, FADE_MS);
+    } else {
+      // fade out: baixa gain, depois hush
+      try {
+        const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
+        base.play();
+        if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001).play();
+      } catch {}
+      setTimeout(() => {
+        stopStrudelAll();
+        STRUDEL.enabled = false;
+      }, FADE_MS);
+    }
+  }
+
   function safeEvalHydra(code) {
     (0, eval)(code);
+  }
+
+  // =====================================================
+  // Hydra FX aleatório por bolha (hover/click)
+  //   - hover aplica FX randômico
+  //   - click trava FX até outra bolha ou clique fora
+  // =====================================================
+  function randomFxFromSeed(seedId) {
+    const r = hash01(String(seedId) + "::fx");
+    const pick = Math.floor(r * 8);
+    const a = 0.15 + r * 0.55;
+    const b = 1.0 + r * 5.0;
+    return {
+      pick,
+      a,
+      b,
+    };
+  }
+
+  function applyRandomSeedFx(node, fxObj) {
+    if (!fxObj) return node;
+    const p = fxObj.pick % 8;
+    try {
+      if (p === 0) return node.invert(fxObj.a);
+      if (p === 1) return node.posterize(Math.floor(2 + fxObj.b), 0.6);
+      if (p === 2) return node.kaleid(Math.floor(2 + fxObj.b)).rotate(() => fxObj.a * 0.35);
+      if (p === 3) return node.pixelate(18 + Math.floor(fxObj.b * 12), 10 + Math.floor(fxObj.b * 6));
+      if (p === 4) return node.scrollX(() => fxObj.a * 0.02, () => fxObj.a * 0.01).scrollY(() => -fxObj.a * 0.02, () => fxObj.a * 0.01);
+      if (p === 5) return node.modulateRotate(node, () => fxObj.a * 0.35).contrast(1.0 + fxObj.a * 0.35);
+      if (p === 6) return node.modulateScale(node, () => 0.8 + fxObj.a * 0.8, () => fxObj.a * 0.15);
+      return node.luma(() => 0.25 + fxObj.a * 0.55, 0.15);
+    } catch {
+      return node;
+    }
   }
 
   function applyPresetFxToDisplay(presetId, state) {
@@ -303,16 +513,20 @@ a.show()
 
     const fx = state.presets[presetId]?.fx || defaultFx();
 
-    // hover “aleatório por bolha”: um boost (h) + deltas por parâmetro
+    // suaviza “hover-hydra” (menos colorama / menos saturação)
     const h = window.CEU_HOVER || 0;
-    const hf = window.CEU_HOVER_FX || { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
+
+    const seedFx = window.CEU_SEED_FX || null; // {pick,a,b}
 
     try {
-      src(srcBuf)
-        .contrast(() => fx.contrast + (h * 0.12) + (hf.contrast || 0))
-        .saturate(() => fx.saturate + (h * 0.18) + (hf.saturate || 0))
-        .brightness(() => fx.brightness + (h * 0.05) + (hf.brightness || 0))
-        .colorama(() => fx.colorama + (h * 0.12) + (hf.colorama || 0))
+      let chain = src(srcBuf);
+      chain = applyRandomSeedFx(chain, seedFx);
+
+      chain
+        .contrast(() => fx.contrast + h * 0.14)
+        .saturate(() => fx.saturate + h * 0.22)
+        .brightness(() => fx.brightness + h * 0.05)
+        .colorama(() => fx.colorama + h * 0.16)
         .out(outBuf);
 
       if (typeof window.render === "function") window.render(outBuf);
@@ -465,19 +679,6 @@ a.show()
     return options[(h >>> 0) % options.length];
   }
 
-  function randomHoverFx() {
-    // deltas pequenos e elegantes (sem estourar saturação/colorama)
-    // cada bolha/hover “vira” um mini-preset temporário
-    return {
-      contrast:   (Math.random() * 0.20 - 0.08),   // -0.08 .. +0.12
-      saturate:   (Math.random() * 0.30 - 0.10),   // -0.10 .. +0.20
-      brightness: (Math.random() * 0.10 - 0.05),   // -0.05 .. +0.05
-      colorama:   (Math.random() * 0.18 - 0.06)    // -0.06 .. +0.12
-    };
-  }
-
-
-
   function openViewer(viewerEls, post) {
     const { viewer, viewerImg, viewerText, viewerMeta } = viewerEls;
     const mediaType = post.media_type || "";
@@ -591,9 +792,6 @@ a.show()
     el.className = "seed";
     el.type = "button";
 
-    // tooltip: descreve a função da bolha
-    el.setAttribute("data-tip", "Marca no céu: passe o mouse para ver o efeito; clique para abrir.");
-
     const x = 6 + Math.random() * 88;
     const y = 12 + Math.random() * 76;
     el.style.left = x.toFixed(2) + "%";
@@ -638,17 +836,25 @@ a.show()
       bubble.appendChild(bText);
     }
 
-    const hint = document.createElement("div");
-    hint.className = "bubbleHint";
-    hint.textContent = isHoverDesktop() ? "clique para abrir" : "toque de novo para abrir";
-    bubble.appendChild(hint);
+    // (removido) hints/legendas na bolha — queremos uma UI limpa sem tooltips
+
+    const viewBtn = document.createElement("button");
+    viewBtn.type = "button";
+    viewBtn.className = "btn btn--tiny";
+    viewBtn.textContent = "ver";
+    viewBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openViewer(viewerEls, post);
+    });
+    bubble.appendChild(viewBtn);
 
     el.appendChild(bubble);
 
     // drag (desktop + mobile)
     enableSeedDrag(el, garden);
 
-    // hover (somente desktop): abre bolha + hover FX
+    // hover (somente desktop): abre bolha + preview (FX)
     if (isHoverDesktop()) {
       let closeT = null;
 
@@ -656,15 +862,25 @@ a.show()
         clearTimeout(closeT);
         openSeedBubble(el);
 
-        window.CEU_HOVER = 0.22 + Math.random() * 0.42;
-        window.CEU_HOVER_FX = randomHoverFx();
-        applyPresetFxToDisplay(state.activePreset, state);
+        // preview: só funciona enquanto NÃO houver lock
+        if (LOCKED_SEED_ID == null) {
+          PREVIEW_SEED_ID = post.id;
+          PREVIEW_FX = randomFxFromSeed(post.id);
+          window.CEU_SEED_FX = PREVIEW_FX;
+          window.CEU_HOVER = 0.28 + Math.random() * 0.45;
+          applyPresetFxToDisplay(state.activePreset, state);
+        }
       });
 
       el.addEventListener("pointerleave", () => {
-        window.CEU_HOVER = 0;
-        window.CEU_HOVER_FX = { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
-        applyPresetFxToDisplay(state.activePreset, state);
+        // encerra preview somente se não houver lock
+        if (LOCKED_SEED_ID == null) {
+          PREVIEW_SEED_ID = null;
+          PREVIEW_FX = null;
+          window.CEU_HOVER = 0;
+          window.CEU_SEED_FX = null;
+          applyPresetFxToDisplay(state.activePreset, state);
+        }
 
         closeT = setTimeout(() => {
           el.classList.remove("is-open");
@@ -672,61 +888,103 @@ a.show()
         }, 180);
       });
     } else {
-      // touch: simula "hover" com pressionar/soltar
-      // (permite ver os efeitos no mobile sem depender de hover real)
-      const touchBoost = () => {
-        // evita ativar se estava arrastando
+      // touch (mobile):
+      // - tap 1x: abre bolha + aplica efeito (preview)
+      // - tap longo: trava (lock)
+      // - tap 2x: viewer (dblclick)
+      let longPressT = null;
+      let longPressFired = false;
+
+      const applyPreview = () => {
         if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
-        window.CEU_HOVER = 0.18 + Math.random() * 0.28;
-        window.CEU_HOVER_FX = randomHoverFx();
+        if (LOCKED_SEED_ID != null) return; // preview desativado quando há lock
+        PREVIEW_SEED_ID = post.id;
+        PREVIEW_FX = randomFxFromSeed(post.id);
+        window.CEU_SEED_FX = PREVIEW_FX;
+        window.CEU_HOVER = 0.22 + Math.random() * 0.28;
         applyPresetFxToDisplay(state.activePreset, state);
       };
 
-      const touchReset = () => {
+      const lockCurrent = () => {
+        // trava o preview atual (ou gera um se não existir)
+        const fx = PREVIEW_SEED_ID === post.id && PREVIEW_FX ? PREVIEW_FX : randomFxFromSeed(post.id);
+        LOCKED_SEED_ID = post.id;
+        LOCKED_FX = fx;
+        PREVIEW_SEED_ID = null;
+        PREVIEW_FX = null;
         window.CEU_HOVER = 0;
-        window.CEU_HOVER_FX = { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
+        window.CEU_SEED_FX = fx;
         applyPresetFxToDisplay(state.activePreset, state);
       };
 
-      // pointer* funciona tanto em iOS/Android modernos quanto desktop
       el.addEventListener("pointerdown", (e) => {
-        // só queremos isso quando o pointer é "coarse" (touch)
         if (isHoverDesktop()) return;
         if (e.target?.closest?.(".bubble")) return;
-        touchBoost();
+        longPressFired = false;
+        clearTimeout(longPressT);
+        // tap longo -> lock
+        longPressT = setTimeout(() => {
+          longPressFired = true;
+          openSeedBubble(el);
+          applyPreview();
+          lockCurrent();
+        }, 520);
       });
-      el.addEventListener("pointerup", () => { if (!isHoverDesktop()) touchReset(); });
-      el.addEventListener("pointercancel", () => { if (!isHoverDesktop()) touchReset(); });
 
-      // fallback: alguns navegadores mobile ainda disparam melhor touch*
-      el.addEventListener("touchstart", () => { if (!isHoverDesktop()) touchBoost(); }, { passive: true });
-      el.addEventListener("touchend", () => { if (!isHoverDesktop()) touchReset(); }, { passive: true });
-      el.addEventListener("touchcancel", () => { if (!isHoverDesktop()) touchReset(); }, { passive: true });
+      el.addEventListener("pointerup", () => {
+        if (isHoverDesktop()) return;
+        clearTimeout(longPressT);
+      });
+
+      el.addEventListener("pointercancel", () => {
+        if (isHoverDesktop()) return;
+        clearTimeout(longPressT);
+      });
+
+      // usado no click handler para ignorar o click após long-press
+      el._wasLongPressed = () => longPressFired;
     }
 
     // click/tap:
-    // - se arrastou agora: ignora
-    // - mobile: 1º abre bolha, 2º abre viewer
-    // - desktop: click abre viewer direto (bolha já abre no hover)
+    // desktop: 1x = lock
+    // mobile: 1x = abre bolha + aplica efeito (preview)
     el.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
 
       if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
 
+      // se foi long-press no mobile, não processa click
+      if (!isHoverDesktop() && typeof el._wasLongPressed === "function" && el._wasLongPressed()) return;
+
+      openSeedBubble(el);
+
       if (isHoverDesktop()) {
-        openViewer(viewerEls, post);
-        return;
+        // desktop: lock no 1 clique
+        const fx = (PREVIEW_SEED_ID === post.id && PREVIEW_FX) ? PREVIEW_FX : randomFxFromSeed(post.id);
+        LOCKED_SEED_ID = post.id;
+        LOCKED_FX = fx;
+        PREVIEW_SEED_ID = null;
+        PREVIEW_FX = null;
+        window.CEU_HOVER = 0;
+        window.CEU_SEED_FX = fx;
+      } else {
+        // mobile: tap 1x = preview
+        if (LOCKED_SEED_ID == null) {
+          PREVIEW_SEED_ID = post.id;
+          PREVIEW_FX = randomFxFromSeed(post.id);
+          window.CEU_SEED_FX = PREVIEW_FX;
+          window.CEU_HOVER = 0.22 + Math.random() * 0.28;
+        }
       }
 
-      const isOpen = el.classList.contains("is-open");
-      if (!isOpen) {
-        openSeedBubble(el);
-        return;
-      }
+      applyPresetFxToDisplay(state.activePreset, state);
+    });
 
-      el.classList.remove("is-open");
-      el.style.zIndex = "";
+    // viewer só com gesto diferente (duplo clique)
+    el.addEventListener("dblclick", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
       openViewer(viewerEls, post);
     });
 
@@ -983,6 +1241,10 @@ a.show()
         state.activePreset = id;
         saveState(state);
 
+        // Strudel: cada triângulo tem sua melodia base
+        STRUDEL.triangleId = id;
+        if (STRUDEL.enabled) playStrudelMix({ triId: id, lockedSeedId: STRUDEL.lockedSeedId });
+
         miniApi?.syncEditorFromState?.();
         runActivePreset(state);
         setActiveUI();
@@ -1051,77 +1313,49 @@ a.show()
     const viewerMeta = document.getElementById("viewerMeta");
     const viewerEls = { viewer, viewerImg, viewerText, viewerMeta };
 
-    // =====================================================
-    // TOOLTIP (1s delay) — usa data-tip em qualquer elemento
-    // =====================================================
-    (function initTooltips(){
-      const tip = document.createElement("div");
-      tip.className = "uiTip";
-      tip.setAttribute("role", "tooltip");
-      tip.style.display = "none";
-      document.body.appendChild(tip);
+    // Remove tooltips/hints nativos (atributo title)
+    document.querySelectorAll("[title]").forEach((n) => n.removeAttribute("title"));
 
-      let t = null;
-      let currentEl = null;
-
-      const show = (el) => {
-        const text = el?.getAttribute?.("data-tip");
-        if (!text) return;
-        tip.textContent = text;
-        tip.style.display = "block";
-        tip.style.opacity = "1";
-
-        const r = el.getBoundingClientRect();
-        const margin = 10;
-
-        const w = tip.offsetWidth;
-        const h = tip.offsetHeight;
-
-        let left = r.left + (r.width/2) - (w/2);
-        left = clamp(left, margin, window.innerWidth - w - margin);
-
-        let top = r.top - h - 10;
-        if (top < margin) top = r.bottom + 10;
-
-        tip.style.left = `${left}px`;
-        tip.style.top = `${top}px`;
-      };
-
-      const hide = () => {
-        clearTimeout(t);
-        t = null;
-        currentEl = null;
-        tip.style.display = "none";
-      };
-
-      document.addEventListener("pointerenter", (e) => {
-        const el = e.target?.closest?.("[data-tip]");
-        if (!el) return;
-        if (el.matches?.("[disabled]")) return;
-
-        currentEl = el;
-        clearTimeout(t);
-        t = setTimeout(() => {
-          if (currentEl === el) show(el);
-        }, 1000);
-      }, true);
-
-      document.addEventListener("pointerleave", (e) => {
-        const el = e.target?.closest?.("[data-tip]");
-        if (!el) return;
-        hide();
-      }, true);
-
-      window.addEventListener("scroll", hide, true);
-      window.addEventListener("resize", hide);
-    })();
-
-
-
-    // Fecha bolhas ao clicar em qualquer lugar fora
+    // Clique/touch fora: fecha bolhas (NÃO remove lock)
     document.addEventListener("pointerdown", (e) => {
-      if (e.target.closest?.(".seed")) return;
+      if (e.target.closest?.(".seed") || e.target.closest?.("#hydraMini") || e.target.closest?.(".fabWrap") || e.target.closest?.(".presetDock")) return;
       closeAllSeedBubbles();
+
+      // encerra preview, mas mantém lock
+      if (LOCKED_SEED_ID == null) {
+        PREVIEW_SEED_ID = null;
+        PREVIEW_FX = null;
+        window.CEU_SEED_FX = null;
+        window.CEU_HOVER = 0;
+        applyPresetFxToDisplay(state.activePreset, state);
+      } else {
+        // garante que o efeito travado continue
+        window.CEU_SEED_FX = LOCKED_FX;
+        window.CEU_HOVER = 0;
+        applyPresetFxToDisplay(state.activePreset, state);
+      }
+    });
+
+    // Dblclick no background: remove lock + volta para o código base do mini editor (preset ativo)
+    document.addEventListener("dblclick", (e) => {
+      if (e.target.closest?.(".seed") || e.target.closest?.("#hydraMini") || e.target.closest?.(".fabWrap") || e.target.closest?.(".presetDock") || e.target.closest?.("dialog")) return;
+
+      LOCKED_SEED_ID = null;
+      LOCKED_FX = null;
+      PREVIEW_SEED_ID = null;
+      PREVIEW_FX = null;
+      window.CEU_SEED_FX = null;
+      window.CEU_HOVER = 0;
+      closeAllSeedBubbles();
+
+      // se tiver áudio/strudel ativo, também libera lock dele
+      if (typeof STRUDEL !== "undefined") {
+        STRUDEL.lockedSeedId = null;
+        clearPreviewSeedLayer?.();
+        if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: null });
+      }
+
+      runActivePreset(state);
     });
 
     // Desencorajar “download fácil” (não impede 100%)
@@ -1152,6 +1386,27 @@ a.show()
 
     // Preset dock (A/B/C/D)
     setupPresetDock(state, miniApi);
+
+    // Som (Strudel)
+    const soundBtn = document.getElementById("toggleSound");
+    const savedSound = localStorage.getItem("ceu_sound_enabled") === "1";
+    STRUDEL.triangleId = state.activePreset;
+    if (savedSound && soundBtn) {
+      // só liga se houver gesto do usuário; atualiza UI, mas não inicia automaticamente
+      soundBtn.textContent = "Som: off";
+      soundBtn.setAttribute("aria-pressed", "false");
+    }
+
+    soundBtn?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const turningOn = !STRUDEL.enabled;
+      await setSoundEnabled(turningOn);
+      localStorage.setItem("ceu_sound_enabled", turningOn ? "1" : "0");
+      soundBtn.textContent = turningOn ? "Som: on" : "Som: off";
+      soundBtn.setAttribute("aria-pressed", turningOn ? "true" : "false");
+    });
 
     // abrir composer
     openComposer?.addEventListener("click", () => {
