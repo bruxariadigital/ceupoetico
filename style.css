@@ -572,7 +572,7 @@ input[type="file"]{
   height: 46px;
   cursor: pointer;
 
-  border: 1px solid rgba(255,255,255,0.28);
+  border: 1.5px solid rgba(255,255,255,0.36);
   background:
     radial-gradient(120% 140% at 22% 0%, rgba(255,255,255,0.18), transparent 55%),
     linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06));
@@ -607,9 +607,9 @@ input[type="file"]{
 .presetTri::before{
   content: "";
   position: absolute;
-  inset: -1.5px;
+  inset: -1px;
   clip-path: polygon(50% 8%, 92% 88%, 8% 88%);
-  border: 2px solid rgba(255,255,255,0.36);
+  border: 1.5px solid rgba(255,255,255,0.36);
   filter: drop-shadow(0 0 10px rgba(90,220,255,0.22));
   pointer-events: none;
 }
@@ -737,3 +737,27 @@ input[type="file"]{
 .resize-handle--nw{ left:-2px; top:-2px; cursor:nw-resize; }
 .resize-handle--se{ right:-2px; bottom:-2px; cursor:se-resize; }
 .resize-handle--sw{ left:-2px; bottom:-2px; cursor:sw-resize; }
+
+
+/* destaque da bolha selecionada (lock) */
+.seed.is-locked{
+  box-shadow:
+    0 0 0 1.5px rgba(255,255,255,0.32),
+    0 0 18px rgba(255,255,255,0.18),
+    0 0 42px rgba(120,180,255,0.20);
+}
+
+/* stroke extra nos triângulos (mais legíveis) */
+.presetTri{
+  position: relative;
+}
+.presetTri::before{
+  content: "";
+  position: absolute;
+  inset: -0.5px;
+  border-radius: inherit;
+  pointer-events: none;
+  clip-path: inherit;
+  border: 1px solid rgba(255,255,255,0.25);
+  filter: drop-shadow(0 0 8px rgba(255,255,255,0.18));
+}
