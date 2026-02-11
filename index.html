@@ -13,8 +13,8 @@
 <body class="sky">
   <header class="topbar">
     <nav class="nav" aria-label="Menu">
-      <a href="./index.html" class="active">Início</a>
-      <a href="#" id="openAbout">O que é ser potiguar?</a>
+      <a href="./index.html" class="active" data-tip="Voltar para o céu principal.">Início</a>
+      <a href="#" id="openAbout" data-tip="Abrir a poética do festival Potiguarias Visuais.">O que é ser potiguar?</a>
     </nav>
   </header>
 
@@ -25,10 +25,10 @@
 
     <!-- Triângulos / presets (A-B-C-D) -->
     <div id="presetDock" class="presetDock" aria-label="Presets do fundo">
-      <button class="presetTri is-active" type="button" data-preset="A" aria-label="Preset A"></button>
-      <button class="presetTri" type="button" data-preset="B" aria-label="Preset B"></button>
-      <button class="presetTri" type="button" data-preset="C" aria-label="Preset C"></button>
-      <button class="presetTri" type="button" data-preset="D" aria-label="Preset D"></button>
+      <button class="presetTri is-active" type="button" data-preset="A" aria-label="Preset A" data-tip="Preset A: alterna o fundo Hydra (triângulo A)."></button>
+      <button class="presetTri" type="button" data-preset="B" aria-label="Preset B" data-tip="Preset B: alterna o fundo Hydra (triângulo B)."></button>
+      <button class="presetTri" type="button" data-preset="C" aria-label="Preset C" data-tip="Preset C: alterna o fundo Hydra (triângulo C)."></button>
+      <button class="presetTri" type="button" data-preset="D" aria-label="Preset D" data-tip="Preset D: alterna o fundo Hydra (triângulo D)."></button>
     </div>
 
     <!-- Botões inferiores (centralizados) -->
@@ -52,8 +52,8 @@
       <textarea id="hydraCode" spellcheck="false"></textarea>
 
       <div class="hydra-mini__actions">
-        <button id="runHydra" class="btn btn--run" type="button">clique-me para rodar o código</button>
-        <a id="resetHydra" class="hydra-reset" href="#">Reset códigos</a>
+        <a id="resetHydra" class="hydra-reset" href="#">resetar</a>
+        <button id="runHydra" class="btn" type="button">clique-me para rodar o código</button>
       </div>
     </div>
   </main>
@@ -108,20 +108,6 @@
           A poética do festival cruza videomapping, performance, códigos ao vivo e intervenções urbanas para criar um céu comum:
           um lugar onde cada pessoa deixa sua marca, e a soma dessas marcas vira constelação.
         </p>
-
-        <div class="aboutResources">
-          <h3 class="aboutH3">Recursos usados neste site</h3>
-          <ul class="aboutList">
-            <li>
-              <strong>Hydra</strong> — sintetizador de vídeo em tempo real (WebGL), usado para o fundo vivo.
-              <a href="https://hydra.ojack.xyz/" target="_blank" rel="noopener">hydra.ojack.xyz</a>
-            </li>
-            <li>
-              <strong>IA</strong> — usada como apoio criativo/experimental (rascunhos, testes e variações), sempre com curadoria humana.
-            </li>
-          </ul>
-        </div>
-
         <p class="aboutHint">
           Toque/clique em qualquer lugar fora deste card para fechar.
         </p>
