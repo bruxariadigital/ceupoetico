@@ -524,7 +524,6 @@ a.show()
       return node;
     }
   }
-  }
 
   function applyPresetFxToDisplay(presetId, state) {
     const meta = PRESET_DEFAULTS[presetId] || PRESET_DEFAULTS.A;
