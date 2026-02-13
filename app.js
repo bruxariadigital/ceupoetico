@@ -33,7 +33,28 @@
       console.warn("Não consegui salvar (localStorage cheio?)", e);
     }
   }
+  const DRAFT_KEY = "CEUPOETICO_COMPOSER_DRAFT_V1";
 
+function draftStorageKey() {
+  // localStorage já é “por dispositivo/navegador”; userKey evita colisão dentro do mesmo browser
+  return `${DRAFT_KEY}::${getUserKey()}`;
+}
+
+function loadComposerDraft() {
+  try { return localStorage.getItem(draftStorageKey()) || ""; } catch { return ""; }
+}
+
+function saveComposerDraft(text) {
+  try {
+    const v = (text ?? "").toString();
+    if (!v.trim()) localStorage.removeItem(draftStorageKey());
+    else localStorage.setItem(draftStorageKey(), v);
+  } catch {}
+}
+
+function clearComposerDraft() {
+  try { localStorage.removeItem(draftStorageKey()); } catch {}
+}
   // =====================================================
   // PRESETS (A/B/C/D) + buffers
   // Reservamos o3 como DISPLAY final (pós-processamento)
@@ -290,10 +311,6 @@ a.show()
     fitHydraCanvasToScreen();
     window.addEventListener("resize", fitHydraCanvasToScreen);
     window.addEventListener("orientationchange", () => setTimeout(fitHydraCanvasToScreen, 60));
-  }
-
-  function hushIfPossible() {
-    try { if (typeof window.hush === "function") window.hush(); } catch {}
   }
 
   // =====================================================
@@ -558,8 +575,8 @@ a.show()
   }
 
   function runActivePreset(state) {
-    initHydraBackground();
-    hushIfPossible();
+  initHydraBackground();
+  // sem hush(): rodar o preset ativo já substitui o output pelos .out(...)
 
     const presetId = PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A";
     const code = (state.presets[presetId]?.code || PRESET_DEFAULTS[presetId]?.code || "").trim();
@@ -1321,6 +1338,21 @@ a.show()
     const viewerMeta = document.getElementById("viewerMeta");
     const viewerEls = { viewer, viewerImg, viewerText, viewerMeta };
 
+    // ==============================
+// RASCUNHO: Plantar uma semente
+// Regra: persiste até Enviar, apagar pelo usuário ou Reset códigos
+// ==============================
+if (textEl) {
+  const draft = loadComposerDraft();
+  if (draft && !textEl.value) textEl.value = draft;
+
+  const saveDraftDebounced = debounce(() => saveComposerDraft(textEl.value), 220);
+  textEl.addEventListener("input", saveDraftDebounced);
+
+  // se o usuário apagar tudo, remove do storage
+  textEl.addEventListener("change", () => saveComposerDraft(textEl.value));
+}
+
     // Fecha bolhas ao clicar em qualquer lugar fora
     document.addEventListener("pointerdown", (e) => {
       // clique fora: fecha bolhas abertas (mas mantém o lock do Hydra)
@@ -1441,6 +1473,7 @@ a.show()
         const mediaType = file?.type || null;
 
         await insertPost(text, mediaUrl, mediaType);
+        clearComposerDraft();
 
         // plantar => muda FX do preset ativo
         mutateFxOnPlant(state);
