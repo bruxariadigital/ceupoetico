@@ -761,3 +761,19 @@ input[type="file"]{
   border: 1px solid rgba(255,255,255,0.25);
   filter: drop-shadow(0 0 8px rgba(255,255,255,0.18));
 }
+/* === Triângulos: visibilidade mínima + contorno/glow (só CSS) === */
+.presetTri{
+  opacity: 0.92 !important;                 /* evita ficar quase invisível */
+  filter: drop-shadow(0 0 8px rgba(255,255,255,0.22)) !important;
+}
+
+.presetTri::before{
+  content:"";
+  position:absolute;
+  inset:-1px;                               /* dá “corpo” */
+  clip-path: inherit;
+  pointer-events:none;
+  border: 2.5px solid rgba(255,255,255,0.55); /* contorno mais forte */
+  filter: drop-shadow(0 0 10px rgba(90,220,255,0.35));
+}
+
