@@ -1390,6 +1390,67 @@ if (textEl) {
     // Mini editor
     const miniApi = setupMiniEditor(state);
 
+    // ===== Overlay de código (tecla Y) =====
+const codeOverlay = document.getElementById("codeOverlay");
+let overlayOn = localStorage.getItem("ceu_code_overlay") === "1";
+
+function getActiveHydraCode() {
+  const id = PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A";
+  return (state.presets[id]?.code || PRESET_DEFAULTS[id]?.code || "").trim();
+}
+
+function updateCodeOverlay() {
+  if (!codeOverlay) return;
+  codeOverlay.textContent = getActiveHydraCode();
+}
+
+function setOverlay(on) {
+  overlayOn = !!on;
+  localStorage.setItem("ceu_code_overlay", overlayOn ? "1" : "0");
+  if (!codeOverlay) return;
+  codeOverlay.classList.toggle("is-on", overlayOn);
+  if (overlayOn) updateCodeOverlay();
+}
+
+// expõe para o Ctrl+Enter (opcional)
+window.CEU_updateCodeOverlay = updateCodeOverlay;
+
+setOverlay(overlayOn);
+
+window.addEventListener("keydown", (e) => {
+  // não dispara se estiver digitando no "plantar uma semente"
+  const tag = (document.activeElement?.tagName || "").toLowerCase();
+  const typing = tag === "textarea" || tag === "input";
+  // exceção: se estiver no hydraCode, pode alternar também
+  const isHydraCode = document.activeElement?.id === "hydraCode";
+  if (typing && !isHydraCode) return;
+
+  if (e.key === "y" || e.key === "Y") {
+    e.preventDefault();
+    e.stopPropagation();
+    setOverlay(!overlayOn);
+  }
+});
+
+    // Ctrl+Enter: rodar o preset ativo (mesmo com o mini editor aberto)
+window.addEventListener("keydown", (e) => {
+  const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+  const mod = isMac ? e.metaKey : e.ctrlKey;
+
+  if (mod && e.key === "Enter") {
+    // evita conflito quando estiver em inputs "normais"
+    // MAS: deixa funcionar dentro do textarea do hydraCode (é o caso que a gente quer)
+    e.preventDefault();
+    e.stopPropagation();
+
+    runActivePreset(state);
+
+    // se existir o overlay de código (ver item 4), atualiza também
+    if (typeof window.CEU_updateCodeOverlay === "function") window.CEU_updateCodeOverlay();
+  }
+});
+
+
     // Preset dock (A/B/C/D)
     setupPresetDock(state, miniApi);
 
