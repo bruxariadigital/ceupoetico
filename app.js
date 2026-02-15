@@ -306,12 +306,9 @@ a.show()
   }
 
   // =====================================================
-  // STRUDEL (áudio) — integração A (sem cruzar Hydra)
-  //
-  // Requer no index.html:
-  // <script src="https://unpkg.com/@strudel/web@1.0.3"></script>
-  //
-  // Disponibiliza globals: initStrudel(), note(), n(), s(), hush(), setcps()...
+  // STRUDEL (áudio) — independente do Hydra
+  // Requer <script src="https://unpkg.com/@strudel/web@1.0.3"></script>
+  // (initStrudel, note, hush globais)  :contentReference[oaicite:2]{index=2}
   // =====================================================
   const STRUDEL = {
     ready: false,
@@ -324,23 +321,63 @@ a.show()
     overlayPreview: null,
   };
 
-  function strudelAvailable() {
-    return typeof window.initStrudel === "function" && typeof window.note === "function";
+  // wrapper global esperado pelo resto do app
+  if (!window.CEU_STRUDEL) {
+    window.CEU_STRUDEL = {
+      init: async () => false,
+      hush: () => {},
+      // as funções musicais entram depois que initStrudel rodar
+    };
   }
 
-  function ensureStrudelReady() {
-    if (STRUDEL.ready) return Promise.resolve(true);
-    if (!strudelAvailable()) return Promise.resolve(false);
+  function strudelAvailable() {
+    return typeof window.initStrudel === "function";
+  }
+
+  async function ensureStrudelReady() {
+    if (STRUDEL.ready) return true;
+    if (!strudelAvailable()) {
+      console.warn("Strudel: initStrudel() não existe. Confere se @strudel/web foi carregado antes do app.js");
+      return false;
+    }
 
     try {
-      // initStrudel cria engine + scheduler
-      window.initStrudel();
+      // IMPORTANTÍSSIMO: chamar isso após gesto do usuário (button click)
+      window.initStrudel(); // cria os globais note(), n(), s(), hush(), setcps(), etc.
+      // tenta “acordar” o audio context, se estiver suspenso
+      try {
+        const ctx =
+          window.Strudel?.context ||
+          window.strudel?.context ||
+          window.audioContext ||
+          window.CEU_STRUDEL?.context;
+        if (ctx?.state === "suspended" && typeof ctx.resume === "function") await ctx.resume();
+      } catch {}
+
+      // monta wrapper com o que o app usa
+      window.CEU_STRUDEL = {
+        init: async () => true,
+        hush: () => { try { window.hush?.(); } catch {} },
+        // expõe o namespace global (note/n/s/scale/etc)
+        note: (...a) => window.note(...a),
+        n: (...a) => window.n(...a),
+        s: (...a) => window.s(...a),
+        setcps: (...a) => window.setcps?.(...a),
+      };
+
       STRUDEL.ready = true;
-      return Promise.resolve(true);
+      return true;
     } catch (e) {
       console.warn("Strudel init falhou:", e);
-      return Promise.resolve(false);
+      return false;
     }
+  }
+
+  function stopStrudelAll() {
+    try { window.CEU_STRUDEL?.hush?.(); } catch {}
+    STRUDEL.basePattern = null;
+    STRUDEL.overlayPattern = null;
+    STRUDEL.overlayPreview = null;
   }
 
   function hash01(str) {
@@ -353,124 +390,99 @@ a.show()
   }
 
   function buildTrianglePattern(triId) {
-    // melodias base (curtas, e “aero” no room)
-    if (triId === "A") return window.note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85);
-    if (triId === "B") return window.note("<d4 f4 a4 c5>(3,8)").s("saw").dec(.22).room(.38).gain(.78);
-    if (triId === "C") return window.note("<e4 g4 b4 d5>(3,8)").s("gm_lead_1_square").dec(.20).room(.32).gain(.80);
-    return window.note("<a3 c4 e4 g4>(3,8)").s("gm_electric_piano_1").dec(.24).room(.36).gain(.75);
+    const S = window.CEU_STRUDEL;
+    // base bem “musical” e leve (você ajusta depois)
+    if (triId === "A") return S.note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85);
+    if (triId === "B") return S.note("<d4 f4 a4 c5>(3,8)").s("saw").dec(.22).room(.38).gain(.78);
+    if (triId === "C") return S.note("<e4 g4 b4 d5>(3,8)").s("gm_lead_1_square").dec(.20).room(.32).gain(.80);
+    return S.note("<a3 c4 e4 g4>(3,8)").s("gm_electric_piano_1").dec(.24).room(.36).gain(.75);
   }
 
   function buildSeedLayer(seedId, mode) {
+    const S = window.CEU_STRUDEL;
     const r = hash01(seedId);
     const scale = r < 0.33 ? "C:minor" : (r < 0.66 ? "D:minor" : "A:minor");
     const inst = r < 0.25 ? "hh" : (r < 0.5 ? "gm_pad_1_new_age" : (r < 0.75 ? "gm_bass_2_finger" : "bd"));
     const dense = r < 0.5 ? 8 : 16;
     const g = mode === "preview" ? 0.55 : 0.70;
-    const rm = mode === "preview" ? 0.55 : 0.70;
+    const rm = mode === "preview" ? 0.55 : 0.72;
 
     if (inst === "hh" || inst === "bd") {
-      return window.s(`${inst}*${dense}`).gain(g).room(rm);
+      return S.s(`${inst}*${dense}`).gain(g).room(rm);
     }
-
-    return window.n("<0 2 4 7>*4")
-      .scale(scale)
-      .s(inst)
-      .dec(.18)
-      .gain(g)
-      .room(rm);
+    return S.n("<0 2 4 7>*4").scale(scale).s(inst).dec(.18).gain(g).room(rm);
   }
 
-  function stopStrudelAll() {
-    try { if (typeof window.hush === "function") window.hush(); } catch {}
-    STRUDEL.basePattern = null;
-    STRUDEL.overlayPattern = null;
-    STRUDEL.overlayPreview = null;
-  }
-
-  function playStrudelMix(opts) {
-    const triId = opts?.triId || STRUDEL.triangleId;
-    const lockedSeedId = opts?.lockedSeedId || null;
-
+  function playStrudelMix({ triId, lockedSeedId }) {
     if (!STRUDEL.enabled) return;
-    if (!STRUDEL.ready) return;
+    if (!window.CEU_STRUDEL?.note) return;
 
     stopStrudelAll();
-
     STRUDEL.triangleId = triId;
-    STRUDEL.lockedSeedId = lockedSeedId;
+    STRUDEL.lockedSeedId = lockedSeedId || null;
 
-    try {
-      const base = buildTrianglePattern(triId);
-      STRUDEL.basePattern = base;
-      base.play();
+    const base = buildTrianglePattern(triId);
+    STRUDEL.basePattern = base;
+    base.play();
 
-      if (lockedSeedId) {
-        const layer = buildSeedLayer(lockedSeedId, "lock");
-        STRUDEL.overlayPattern = layer;
-        layer.play();
-      }
-    } catch (e) {
-      console.warn("Strudel play falhou:", e);
+    if (STRUDEL.lockedSeedId) {
+      const layer = buildSeedLayer(STRUDEL.lockedSeedId, "lock");
+      STRUDEL.overlayPattern = layer;
+      layer.play();
     }
   }
 
   function previewSeedLayer(seedId) {
-    if (!STRUDEL.enabled || !STRUDEL.ready) return;
-    if (!seedId) return;
+    if (!STRUDEL.enabled) return;
+    if (!window.CEU_STRUDEL?.note) return;
     if (seedId === STRUDEL.lockedSeedId) return;
     if (seedId === STRUDEL.previewSeedId) return;
 
-    // refaz base + lock e toca preview por cima
+    // reconstrói base + lock, depois preview (sem acumular)
     try {
-      stopStrudelAll();
-      const base = buildTrianglePattern(STRUDEL.triangleId);
-      base.play();
+      window.CEU_STRUDEL.hush();
+      buildTrianglePattern(STRUDEL.triangleId).play();
       if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").play();
     } catch {}
 
     STRUDEL.previewSeedId = seedId;
-    try {
-      STRUDEL.overlayPreview = buildSeedLayer(seedId, "preview");
-      STRUDEL.overlayPreview.play();
-    } catch {}
+    STRUDEL.overlayPreview = buildSeedLayer(seedId, "preview");
+    STRUDEL.overlayPreview.play();
   }
 
   function clearPreviewSeedLayer() {
-    if (!STRUDEL.enabled || !STRUDEL.ready) return;
+    if (!STRUDEL.enabled) return;
     if (!STRUDEL.previewSeedId) return;
     STRUDEL.previewSeedId = null;
     playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
   }
 
-  function setSoundEnabled(on) {
-    return ensureStrudelReady().then((ok) => {
-      if (!ok) return;
+  async function setSoundEnabled(on) {
+    // aqui NÃO inicializa por trás — exige que "Criar som" tenha sido clicado ao menos 1x
+    const ok = STRUDEL.ready || (await ensureStrudelReady());
+    if (!ok) return;
 
-      const FADE_MS = 120;
-
-      if (on) {
-        STRUDEL.enabled = true;
-
-        // “primeiro sopro” baixinho + rebuild normal
-        try {
-          stopStrudelAll();
-          const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
-          base.play();
-          if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001).play();
-        } catch {}
-
-        setTimeout(() => {
-          playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-        }, FADE_MS);
-      } else {
-        // fade out: corta com hush depois de um “micro” (evita clique seco)
-        setTimeout(() => {
-          stopStrudelAll();
-          STRUDEL.enabled = false;
-        }, FADE_MS);
-      }
-    });
+    const FADE_MS = 120;
+    if (on) {
+      STRUDEL.enabled = true;
+      stopStrudelAll();
+      // liga já tocando
+      setTimeout(() => {
+        playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
+      }, FADE_MS);
+    } else {
+      setTimeout(() => {
+        stopStrudelAll();
+        STRUDEL.enabled = false;
+      }, FADE_MS);
+    }
   }
+
+  // Expor helpers pra UI / outros handlers
+  window.CEU_STRUDEL_PLAY = () => playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
+  window.CEU_STRUDEL_STOP = () => stopStrudelAll();
+  window.CEU_STRUDEL_PREVIEW = (id) => previewSeedLayer(id);
+  window.CEU_STRUDEL_CLEAR_PREVIEW = () => clearPreviewSeedLayer();
 
   // =====================================================
   // Hydra eval (seguro)
@@ -923,6 +935,9 @@ a.show()
       el.addEventListener("pointerenter", () => {
         clearTimeout(closeT);
         openSeedBubble(el);
+                // STRUDEL preview (desktop)
+        previewSeedLayer(post.id);
+
 
         const fx = randomFxFromSeed(post.id + "::hover::" + Date.now() + "::" + Math.random());
         window.CEU_PREVIEW_SEED_ID = post.id;
@@ -936,6 +951,7 @@ a.show()
       });
 
       el.addEventListener("pointerleave", () => {
+        
         window.CEU_PREVIEW_SEED_ID = null;
         window.CEU_PREVIEW_FX = null;
 
@@ -944,6 +960,8 @@ a.show()
 
         // Strudel: remove preview e volta para base+lock
         clearPreviewSeedLayer();
+          
+
 
         closeT = setTimeout(() => {
           el.classList.remove("is-open");
@@ -973,6 +991,9 @@ a.show()
       window.CEU_LOCKED_FX = fx;
 
       markLockedSeed(el);
+      // STRUDEL lock layer
+      STRUDEL.lockedSeedId = post.id;
+      if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
 
       window.CEU_HOVER = 0;
       applyPresetFxToDisplay(state.activePreset, state);
@@ -1251,10 +1272,20 @@ a.show()
         if (!PRESET_IDS.includes(id)) return;
 
         state.activePreset = id;
+                // STRUDEL: troca a base do triângulo (se som estiver ligado)
+        STRUDEL.triangleId = id;
+        if (STRUDEL.enabled) {
+          playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
+        }
+
         saveState(state);
 
         closeAllSeedBubbles();
         clearSeedLock(state);
+            // STRUDEL: remove layer lock
+    STRUDEL.lockedSeedId = null;
+    if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: null });
+
 
         miniApi?.syncEditorFromState?.();
         runActivePreset(state);
@@ -1434,6 +1465,109 @@ a.show()
     });
 
     setupPresetDock(state, miniApi);
+
+        // ==========================
+    // SOM (Strudel) — criar / on-off / mini editor
+    // ==========================
+    const createSoundBtn = document.getElementById("createSound");
+    const soundBtn = document.getElementById("toggleSound");
+
+    STRUDEL.triangleId = state.activePreset;
+
+    createSoundBtn?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const ok = await ensureStrudelReady();
+      if (!ok) {
+        alert("Strudel não carregou. Confere o <script> do @strudel/web no index.html.");
+        return;
+      }
+      // feedback simples
+      createSoundBtn.textContent = "Som criado";
+      createSoundBtn.disabled = true;
+    });
+
+    soundBtn?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // exige que "Criar som" tenha sido clicado (gesto do usuário)
+      if (!STRUDEL.ready) {
+        alert("Primeiro clique em “Criar som” para destravar o áudio do navegador.");
+        return;
+      }
+
+      const turningOn = !STRUDEL.enabled;
+      await setSoundEnabled(turningOn);
+
+      localStorage.setItem("ceu_sound_enabled", turningOn ? "1" : "0");
+      soundBtn.textContent = turningOn ? "Som: on" : "Som: off";
+      soundBtn.setAttribute("aria-pressed", turningOn ? "true" : "false");
+    });
+
+    // mini editor Strudel
+    const strudelPanel = document.getElementById("strudelMini");
+    const openStrudelMini = document.getElementById("openStrudelMini");
+    const closeStrudelMini = document.getElementById("closeStrudelMini");
+    const strudelCode = document.getElementById("strudelCode");
+    const runStrudel = document.getElementById("runStrudel");
+    const stopStrudel = document.getElementById("stopStrudel");
+
+    // default: mostra o "mix engine" (você pode editar)
+    if (strudelCode && !strudelCode.value) {
+      strudelCode.value =
+`setcps(1)
+note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85).play()
+// stop: hush()`;
+    }
+
+    function openStrudelPanel(ev){
+      ev?.preventDefault?.(); ev?.stopPropagation?.();
+      if (!strudelPanel) return;
+      strudelPanel.hidden = !strudelPanel.hidden;
+    }
+    openStrudelMini?.addEventListener("click", openStrudelPanel);
+    closeStrudelMini?.addEventListener("click", (e)=>{ e.preventDefault(); e.stopPropagation(); if(strudelPanel) strudelPanel.hidden = true; });
+
+    function evalStrudel(code){
+      // Strudel/web define funções globais (note, hush, setcps...)
+      // Aqui rodamos como JS mesmo.
+      (0, eval)(String(code || ""));
+    }
+
+    runStrudel?.addEventListener("click", async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (!STRUDEL.ready) {
+        alert("Clique em “Criar som” antes de rodar Strudel.");
+        return;
+      }
+      try { evalStrudel(strudelCode?.value || ""); } catch(err){ console.error(err); alert("Erro no Strudel. Veja o console."); }
+    });
+
+    stopStrudel?.addEventListener("click", (e) => {
+      e.preventDefault(); e.stopPropagation();
+      try { window.hush?.(); } catch {}
+    });
+
+    // atalho: Alt+Enter roda o Strudel editor (Ctrl+Enter já é Hydra)
+    window.addEventListener("keydown", async (e) => {
+      const tag = (document.activeElement?.tagName || "").toLowerCase();
+      const typing = tag === "textarea" || tag === "input";
+      const isStrudelCode = document.activeElement?.id === "strudelCode";
+
+      if (typing && !isStrudelCode) return;
+
+      if (e.altKey && e.key === "Enter") {
+        e.preventDefault(); e.stopPropagation();
+        if (!STRUDEL.ready) {
+          alert("Clique em “Criar som” antes de rodar Strudel.");
+          return;
+        }
+        try { evalStrudel(strudelCode?.value || ""); } catch(err){ console.error(err); alert("Erro no Strudel. Veja o console."); }
+      }
+    });
+
 
     // ===== Som (Strudel) =====
     const soundBtn = document.getElementById("toggleSound");
