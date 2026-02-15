@@ -968,29 +968,7 @@ function applyPresetFxToDisplay(presetId, state) {
 
   // opcional: evita callout/seleção em alguns navegadores durante gesto
   el.addEventListener("contextmenu", (e) => e.preventDefault());
-}
-
-
-      el.addEventListener("pointerdown", (e) => {
-        if (isHoverDesktop()) return;
-        if (e.target?.closest?.(".bubble")) return;
-        if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
-
-        el._didLongPress = false;
-
-        clearPress();
-        pressT = setTimeout(() => {
-          el._didLongPress = true;
-          openSeedBubble(el);
-          openViewer(viewerEls, post);
-        }, 520);
-      });
-
-      el.addEventListener("pointerup", clearPress);
-      el.addEventListener("pointercancel", clearPress);
     }
-
-    // click/tap:
 
     // - fixa (som + FX) nesta bolha
     el.addEventListener("click", (ev) => {
