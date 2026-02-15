@@ -1536,7 +1536,6 @@ a.show()
           if (sendBtn) sendBtn.disabled = false;
         });
     });
-
     // render inicial
     renderGarden(garden, viewerEls, state);
   });
