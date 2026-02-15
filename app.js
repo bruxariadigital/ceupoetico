@@ -1412,6 +1412,42 @@ a.show()
 
     const miniApi = setupMiniEditor(state);
 
+// ===== Menu "Crie" (Visuais / Sons) =====
+const createWrap = document.getElementById("createWrap");
+const openCreate = document.getElementById("openCreate");
+const createMenu = document.getElementById("createMenu");
+
+function setCreateMenu(open) {
+  if (!openCreate || !createMenu) return;
+  const on = !!open;
+  openCreate.setAttribute("aria-expanded", on ? "true" : "false");
+  if (on) createMenu.removeAttribute("hidden");
+  else createMenu.setAttribute("hidden", "");
+}
+
+openCreate?.addEventListener("click", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  const isOpen = !createMenu?.hasAttribute?.("hidden");
+  setCreateMenu(!isOpen); // close if open, open if closed
+});
+
+// fecha o menu ao clicar fora
+document.addEventListener("pointerdown", (e) => {
+  if (!createWrap) return;
+  if (createWrap.contains(e.target)) return;
+  setCreateMenu(false);
+});
+
+// fecha com ESC (se não estiver digitando)
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") setCreateMenu(false);
+});
+
+// ao clicar em Visuais/Sons, fecha o menu também
+document.getElementById("openHydraMini")?.addEventListener("click", () => setCreateMenu(false));
+document.getElementById("openStrudelMini")?.addEventListener("click", () => setCreateMenu(false));
+
     // ===== Overlay de código (Y) =====
     const codeOverlay = document.getElementById("codeOverlay");
     let overlayOn = localStorage.getItem("ceu_code_overlay") === "1";
@@ -1568,36 +1604,6 @@ note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85).play()
       }
     });
 
-
-    // ===== Som (Strudel) =====
-    const soundBtn = document.getElementById("toggleSound");
-    const savedSound = localStorage.getItem("ceu_sound_enabled") === "1";
-
-    STRUDEL.triangleId = state.activePreset;
-
-    if (savedSound && soundBtn) {
-      // não auto-start; UI fica off até gesto
-      soundBtn.textContent = "Som: off";
-      soundBtn.setAttribute("aria-pressed", "false");
-    }
-
-    soundBtn?.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const turningOn = !STRUDEL.enabled;
-
-      setSoundEnabled(turningOn).then(() => {
-        localStorage.setItem("ceu_sound_enabled", turningOn ? "1" : "0");
-        soundBtn.textContent = turningOn ? "Som: on" : "Som: off";
-        soundBtn.setAttribute("aria-pressed", turningOn ? "true" : "false");
-
-        // se ligou, toca base do triângulo atual
-        if (turningOn) {
-          playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-        }
-      });
-    });
 
     // abrir composer
     openComposer?.addEventListener("click", () => {
