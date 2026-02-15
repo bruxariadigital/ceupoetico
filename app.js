@@ -542,37 +542,53 @@ a.show()
     }
   }
 
-  function applyPresetFxToDisplay(presetId, state) {
-    const meta = PRESET_DEFAULTS[presetId] || PRESET_DEFAULTS.A;
-    const srcName = meta.renderBuf || "o0";
-    const srcBuf = globalThis[srcName] || globalThis.o0;
-    const outBuf = globalThis[DISPLAY_BUF] || globalThis.o3;
+function applyPresetFxToDisplay(presetId, state) {
+  const meta = PRESET_DEFAULTS[presetId] || PRESET_DEFAULTS.A;
+  const srcName = meta.renderBuf || "o0";
+  const srcBuf = globalThis[srcName] || globalThis.o0;
+  const outBuf = globalThis[DISPLAY_BUF] || globalThis.o3;
 
-    const fx = state.presets[presetId]?.fx || defaultFx();
+  const fx = state.presets[presetId]?.fx || defaultFx();
 
-    // suaviza “hover-hydra” (menos colorama / menos saturação)
-    const h = window.CEU_HOVER || 0;
+  const h = window.CEU_HOVER || 0;
 
-    const lockedFx = window.CEU_LOCKED_FX || null;
-    const previewFx = window.CEU_PREVIEW_FX || null;
+  const lockedFx = window.CEU_LOCKED_FX || null;
+  const previewFx = window.CEU_PREVIEW_FX || null;
 
-    try {
-      let chain = src(srcBuf);
-      chain = applyRandomSeedFx(chain, lockedFx);
-      chain = applyRandomSeedFx(chain, previewFx);
+  // Intensidades (mistura): sensação de camada preservada no lock
+  const LOCK_MIX = 0.55;     // camada persistente (lock)
+  const PREVIEW_MIX = 0.40;  // camada temporária (hover)
 
-      chain
-        .contrast(() => fx.contrast + h * 0.14)
-        .saturate(() => fx.saturate + h * 0.22)
-        .brightness(() => fx.brightness + h * 0.05)
-        .colorama(() => fx.colorama + h * 0.16)
-        .out(outBuf);
+  try {
+    // base "pura"
+    let base = src(srcBuf);
 
-      if (typeof window.render === "function") window.render(outBuf);
-    } catch (e) {
-      console.warn("FX falhou (ignorado):", e);
-    }
+    // versão afetada (partimos sempre do mesmo base para não "trocar o mundo")
+    let affected = src(srcBuf);
+
+    // aplica FX no "affected"
+    affected = applyRandomSeedFx(affected, lockedFx);
+    affected = applyRandomSeedFx(affected, previewFx);
+
+    // mistura como camada (em vez de substituir)
+    let chain = base;
+
+    if (lockedFx) chain = chain.blend(affected, LOCK_MIX);
+    if (previewFx) chain = chain.blend(affected, PREVIEW_MIX);
+
+    chain
+      .contrast(() => fx.contrast + h * 0.14)
+      .saturate(() => fx.saturate + h * 0.22)
+      .brightness(() => fx.brightness + h * 0.05)
+      .colorama(() => fx.colorama + h * 0.16)
+      .out(outBuf);
+
+    if (typeof window.render === "function") window.render(outBuf);
+  } catch (e) {
+    console.warn("FX falhou (ignorado):", e);
   }
+}
+
 
   function runActivePreset(state) {
   initHydraBackground();
@@ -944,16 +960,16 @@ a.show()
           el.style.zIndex = "";
         }, 180);
       });
-    } else {
-      // MOBILE:
-      //   tap 1x (click) = abre + aplica efeito COM lock
-      //   tap longo       = abre viewer (não mexe no lock)
-      let pressT = null;
+  } else {
+  // MOBILE:
+  // - sem "tap longo" (evita abrir viewer ao tentar arrastar)
+  // - viewer abre apenas pelo botão "ver" dentro da bolha
+  // (tap 1x continua sendo lock via handler de click abaixo)
 
-      const clearPress = () => {
-        if (pressT) clearTimeout(pressT);
-        pressT = null;
-      };
+  // opcional: evita callout/seleção em alguns navegadores durante gesto
+  el.addEventListener("contextmenu", (e) => e.preventDefault());
+}
+
 
       el.addEventListener("pointerdown", (e) => {
         if (isHoverDesktop()) return;
@@ -983,11 +999,7 @@ a.show()
 
       if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
 
-      // mobile: long press abre viewer; não trava efeito
-      if (el._didLongPress) {
-        el._didLongPress = false;
-        return;
-      }
+    
 
       openSeedBubble(el);
 
