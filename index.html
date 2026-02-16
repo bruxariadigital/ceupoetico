@@ -3,9 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-
   <title>Céu poético | Laborátorio Experimental</title>
-
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="./style.css" />
 </head>
@@ -22,7 +20,6 @@
     <canvas id="hydra-canvas" class="hydra-canvas" aria-hidden="true"></canvas>
     <pre id="codeOverlay" class="codeOverlay" aria-hidden="true"></pre>
 
-
     <div id="garden" class="garden" aria-label="mural interativo"></div>
 
     <!-- Triângulos / presets (A-B-C-D) -->
@@ -33,25 +30,20 @@
       <button class="presetTri" type="button" data-preset="D" aria-label="Preset D" data-tip="Preset D: alterna o fundo Hydra (triângulo D)."></button>
     </div>
 
-    <!-- Botões inferiores (centralizados) -->
-    <div class="fabWrap" aria-label="Ações">
-      <button id="openComposer" class="fab" type="button" aria-haspopup="dialog">
-        Plantar uma semente
-      </button>
+    <!-- Create Dock (Plantar + Crie -> Visuais/Sons) -->
+    <div id="createDock" class="createDock" aria-label="Ações">
+      <button id="openComposer" class="btn btn--primary" type="button" aria-haspopup="dialog">Plantar uma semente</button>
 
-      <!-- "Crie" abre um mini menu: Visuais / Sons -->
-      <div class="createWrap">
-        <button id="openCreate" class="fab" type="button" aria-haspopup="menu" aria-expanded="false">
-          Crie
-        </button>
-        <div id="createMenu" class="createMenu" hidden role="menu" aria-label="Crie">
-          <button id="openHydraMini" class="btn btn--ghost" type="button" role="menuitem">Visuais</button>
-          <button id="openStrudelMini" class="btn btn--ghost" type="button" role="menuitem">Sons</button>
+      <div class="createDock__menu">
+        <button id="openCreate" class="btn btn--ghost" type="button" aria-expanded="false" aria-controls="createMenu">Crie</button>
+        <div id="createMenu" class="createMenu" hidden>
+          <button id="openHydraMini" class="btn btn--tiny" type="button">Visuais</button>
+          <button id="openStrudelMini" class="btn btn--tiny" type="button">Sons</button>
         </div>
       </div>
     </div>
 
-    <!-- Mini editor -->
+    <!-- Mini editor: Hydra -->
     <div id="hydraMini" class="hydra-mini" hidden>
       <div class="hydra-mini__top">
         <strong>Hydra Sintetizador de Vídeo online</strong>
@@ -61,11 +53,23 @@
       <textarea id="hydraCode" spellcheck="false"></textarea>
 
       <div class="hydra-mini__actions">
-        <a id="resetHydra" class="hydra-reset" href="#">Reset códigos</a>
-        <button id="runHydra" class="btn btn--run">clique-me para rodar o código</button>
+        <a id="resetHydra" class="hydra-reset" href="#">reset códigos</a>
+        <button id="runHydra" class="btn btn--run" type="button">clique-me para rodar o código</button>
       </div>
-
     </div>
+    <!-- /Mini editor: Hydra -->
+
+    <!-- Mini editor: Strudel (isolado em iframe) -->
+    <div id="strudelMini" class="miniPanel" hidden>
+      <div class="hydra-mini__top">
+        <div class="hydra-mini__title">Mini Strudel</div>
+        <div class="hydra-mini__spacer"></div>
+        <button id="closeStrudelMini" class="btn btn--tiny" aria-label="Fechar">×</button>
+      </div>
+      <iframe id="strudelFrame" class="strudelFrame" title="Strudel" src="strudel-mini.html" loading="lazy"></iframe>
+    </div>
+    <!-- /Mini editor: Strudel -->
+
   </main>
 
   <!-- POPUP: Plantar uma semente -->
@@ -118,9 +122,7 @@
           A poética do festival cruza videomapping, performance, códigos ao vivo e intervenções urbanas para criar um céu comum:
           um lugar onde cada pessoa deixa sua marca, e a soma dessas marcas vira constelação.
         </p>
-        <p class="aboutHint">
-          Toque/clique em qualquer lugar fora deste card para fechar.
-        </p>
+        <p class="aboutHint">Toque/clique em qualquer lugar fora deste card para fechar.</p>
       </div>
     </div>
   </dialog>
@@ -134,31 +136,9 @@
       <p id="viewerMeta" class="viewerMeta"></p>
     </div>
   </dialog>
-<!-- MINI EDITOR STRUDEL (abre via Crie > Sons) -->
-<div id="strudelMini" class="mini mini--strudel" hidden>
-  <div class="mini__top">
-    <strong>Strudel</strong>
-    <div class="mini__topActions">
-      <button id="toggleSound" class="btn btn--tiny" aria-pressed="false">Som: off</button>
-      <button id="runStrudel" class="btn btn--tiny">Rodar</button>
-      <button id="stopStrudel" class="btn btn--tiny btn--ghost">Parar</button>
-      <button id="closeStrudelMini" class="btn btn--tiny btn--ghost">✕</button>
-    </div>
-  </div>
-
-  <textarea id="strudelCode" spellcheck="false"></textarea>
-
-  <div class="mini__hint">
-    Atalhos: <kbd>Ctrl</kbd>+<kbd>Enter</kbd> roda Hydra • <kbd>Alt</kbd>+<kbd>Enter</kbd> roda Strudel • <kbd>Y</kbd> overlay do Hydra
-  </div>
-</div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://unpkg.com/hydra-synth"></script>
-  <!-- Strudel isolado via ESM wrapper (evita conflito com Hydra) -->
-  <script type="module" src="./strudel-loader.js"></script>
   <script defer src="./app.js"></script>
-
-  
 </body>
 </html>

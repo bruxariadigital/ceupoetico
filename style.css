@@ -324,33 +324,6 @@ body{
 }
 .fab:active{ transform: translateY(1px); }
 
-/* =========================
-   Crie menu (Visuais / Sons)
-   ========================= */
-.createWrap{ position: relative; display: inline-flex; align-items: center; }
-.createMenu{
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(100% + 10px);
-  display: flex;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.18);
-  background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.06));
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  box-shadow:
-    0 22px 90px rgba(0,0,0,0.42),
-    inset 0 1px 0 rgba(255,255,255,0.18);
-}
-.createMenu .btn{ padding: 8px 12px; font-size: 12px; }
-
-@media (max-width: 640px){
-  .createMenu{ bottom: calc(100% + 12px); }
-}
-
 @media (max-width: 640px){
   .fabWrap{
     width: calc(100vw - 24px);
@@ -893,4 +866,70 @@ kbd{
 .btn:hover{ background:rgba(255,255,255,.12); }
 .btn--ghost{ background:rgba(0,0,0,.12); }
 .btn--tiny{ padding:7px 10px; border-radius:12px; font-size:12px; }
+
+
+/* ==============================
+   Create menu (Crie -> Visuais/Sons)
+   ============================== */
+.createDock__menu{ position: relative; display:flex; align-items:center; }
+.createMenu{
+  position:absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  display:flex;
+  gap:8px;
+  padding:10px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.08));
+  border: 1px solid var(--stroke);
+  box-shadow: 0 22px 70px rgba(0,0,0,0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* ==============================
+   Mini Strudel
+   ============================== */
+.strudelFrame{
+  width: 100%;
+  height: calc(100% - 44px);
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+}
+
+/* ==============================
+   CreateDock layout
+   ============================== */
+.createDock{
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 50;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* ==============================
+   MiniPanel (base glass)
+   ============================== */
+.miniPanel{
+  position: fixed;
+  z-index: 60;
+  width: min(520px, calc(100vw - 28px));
+  height: min(420px, calc(100vh - 120px));
+  left: 80px;
+  top: 120px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06));
+  border: 1px solid var(--stroke);
+  box-shadow: 0 22px 70px rgba(0,0,0,0.48);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 10px;
+}
+
+/* Reaproveita topbar do hydra-mini */
+.miniPanel .hydra-mini__top{ margin: 0 0 10px 0; }
 

@@ -306,167 +306,80 @@ a.show()
   }
 
   // =====================================================
-  // STRUDEL (áudio) — independente do Hydra
-  // Carregado via ./strudel-loader.js (ESM) e exposto em window.CEU_STRUDEL
-  // (evita conflito com globals do Hydra como `src`)
+    // =====================================================
+  // STRUDEL (áudio) — ISOLADO em iframe (strudel-mini.html)
+  // Regras (como você pediu):
+  // - hover: não toca nada
+  // - click 1x na bolha: envia um "efeito" (seed) para o Strudel
+  // - cada triângulo (A/B/C/D): tem um código musical base (editável)
+  // - Strudel NÃO encosta no Hydra: sem globals, sem hush compartilhado
   // =====================================================
-  const STRUDEL = {
-    ready: false,
-    enabled: false,
-    triangleId: "A",
-    lockedSeedId: null,
-    previewSeedId: null,
-    basePattern: null,
-    overlayPattern: null,
-    overlayPreview: null,
+
+  const STRUDEL_STORAGE_KEY = 'CEUPOETICO_STRUDEL_STATE_V1';
+
+  const STRUDEL_DEFAULTS = {
+    A: `// A — céu (batida suave)
+setcps(0.85)
+stack(
+  note('<c4 eb4 g4 bb4>(3,8)').s('sine').dec(.18).room(.35).gain(.60),
+  s('hh*8').gain(.18).room(.25)
+).play()
+`,
+    B: `// B — espelho (pulso)
+setcps(0.80)
+stack(
+  note('<d4 f4 a4 c5>(3,8)').s('saw').dec(.16).room(.32).gain(.55),
+  s('bd*2').gain(.22).room(.18)
+).play()
+`,
+    C: `// C — mar (linha)
+setcps(0.78)
+stack(
+  note('<e4 g4 b4 d5>(3,8)').s('gm_electric_piano_1').dec(.20).room(.40).gain(.60),
+  s('hh*16').gain(.14).room(.22)
+).play()
+`,
+    D: `// D — brasa (pad)
+setcps(0.72)
+stack(
+  note('<a3 c4 e4 g4>(3,8)').s('gm_pad_1_new_age').dec(.26).room(.55).gain(.50),
+  s('bd*1').gain(.16).room(.25)
+).play()
+`,
   };
 
-  // wrapper esperado pelo resto do app (se o loader falhar, isso evita crash)
-  if (!window.CEU_STRUDEL) window.CEU_STRUDEL = { init: async () => false, hush: () => {} };
-
-  function strudelAvailable() {
-    return !!window.CEU_STRUDEL && typeof window.CEU_STRUDEL.init === "function";
-  }
-
-  async function ensureStrudelReady() {
-    if (STRUDEL.ready) return true;
-    if (!strudelAvailable()) {
-      console.warn("Strudel: loader não carregou (window.CEU_STRUDEL.init ausente). Confira strudel-loader.js no index.html");
-      return false;
-    }
-
+  function loadStrudelState() {
     try {
-      // IMPORTANTÍSSIMO: chamar isso após gesto do usuário (click)
-      await window.CEU_STRUDEL.init();
-
-      // tenta “acordar” o audio context, se existir
-      try {
-        const ctx = window.CEU_STRUDEL?._raw?.Strudel?.context || window.Strudel?.context;
-        if (ctx?.state === "suspended" && typeof ctx.resume === "function") await ctx.resume();
-      } catch {}
-
-      STRUDEL.ready = true;
-      return true;
-    } catch (e) {
-      console.warn("Strudel init falhou:", e);
-      return false;
+      const raw = localStorage.getItem(STRUDEL_STORAGE_KEY);
+      if (!raw) return { codes: { ...STRUDEL_DEFAULTS }, seedByTri: { A:null,B:null,C:null,D:null } };
+      const s = JSON.parse(raw);
+      const codes = { ...STRUDEL_DEFAULTS, ...(s.codes || {}) };
+      const seedByTri = { A:null,B:null,C:null,D:null, ...(s.seedByTri || {}) };
+      return { codes, seedByTri };
+    } catch {
+      return { codes: { ...STRUDEL_DEFAULTS }, seedByTri: { A:null,B:null,C:null,D:null } };
     }
   }
 
-  function stopStrudelAll() {
-    try { window.CEU_STRUDEL?.hush?.(); } catch {}
-    STRUDEL.basePattern = null;
-    STRUDEL.overlayPattern = null;
-    STRUDEL.overlayPreview = null;
+  function saveStrudelState(s) {
+    try { localStorage.setItem(STRUDEL_STORAGE_KEY, JSON.stringify(s)); } catch {}
   }
 
-  function hash01(str) {
-    let h = 2166136261;
-    for (let i = 0; i < str.length; i++) {
-      h ^= str.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    return ((h >>> 0) % 10000) / 10000;
+  function postToStrudel(msg) {
+    const frame = document.getElementById('strudelFrame');
+    if (!frame || !frame.contentWindow) return;
+    frame.contentWindow.postMessage({ __ceu: 'strudel', ...msg }, '*');
   }
 
-  function buildTrianglePattern(triId) {
-    const S = window.CEU_STRUDEL;
-    // base bem “musical” e leve (você ajusta depois)
-    if (triId === "A") return S.note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85);
-    if (triId === "B") return S.note("<d4 f4 a4 c5>(3,8)").s("saw").dec(.22).room(.38).gain(.78);
-    if (triId === "C") return S.note("<e4 g4 b4 d5>(3,8)").s("gm_lead_1_square").dec(.20).room(.32).gain(.80);
-    return S.note("<a3 c4 e4 g4>(3,8)").s("gm_electric_piano_1").dec(.24).room(.36).gain(.75);
+  function strudelSetTriangle(triangleId, code) {
+    postToStrudel({ type: 'setTriangle', triangleId, code });
   }
 
-  function buildSeedLayer(seedId, mode) {
-    const S = window.CEU_STRUDEL;
-    const r = hash01(seedId);
-    const scale = r < 0.33 ? "C:minor" : (r < 0.66 ? "D:minor" : "A:minor");
-    const inst = r < 0.25 ? "hh" : (r < 0.5 ? "gm_pad_1_new_age" : (r < 0.75 ? "gm_bass_2_finger" : "bd"));
-    const dense = r < 0.5 ? 8 : 16;
-    const g = mode === "preview" ? 0.55 : 0.70;
-    const rm = mode === "preview" ? 0.55 : 0.72;
-
-    if (inst === "hh" || inst === "bd") {
-      return S.s(`${inst}*${dense}`).gain(g).room(rm);
-    }
-    return S.n("<0 2 4 7>*4").scale(scale).s(inst).dec(.18).gain(g).room(rm);
+  function strudelSetSeedEffect(seedId) {
+    postToStrudel({ type: 'seedEffect', seedId });
   }
 
-  function playStrudelMix({ triId, lockedSeedId }) {
-    if (!STRUDEL.enabled) return;
-    if (!window.CEU_STRUDEL?.note) return;
 
-    stopStrudelAll();
-    STRUDEL.triangleId = triId;
-    STRUDEL.lockedSeedId = lockedSeedId || null;
-
-    const base = buildTrianglePattern(triId);
-    STRUDEL.basePattern = base;
-    base.play();
-
-    if (STRUDEL.lockedSeedId) {
-      const layer = buildSeedLayer(STRUDEL.lockedSeedId, "lock");
-      STRUDEL.overlayPattern = layer;
-      layer.play();
-    }
-  }
-
-  function previewSeedLayer(seedId) {
-    if (!STRUDEL.enabled) return;
-    if (!window.CEU_STRUDEL?.note) return;
-    if (seedId === STRUDEL.lockedSeedId) return;
-    if (seedId === STRUDEL.previewSeedId) return;
-
-    // reconstrói base + lock, depois preview (sem acumular)
-    try {
-      window.CEU_STRUDEL.hush();
-      buildTrianglePattern(STRUDEL.triangleId).play();
-      if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").play();
-    } catch {}
-
-    STRUDEL.previewSeedId = seedId;
-    STRUDEL.overlayPreview = buildSeedLayer(seedId, "preview");
-    STRUDEL.overlayPreview.play();
-  }
-
-  function clearPreviewSeedLayer() {
-    if (!STRUDEL.enabled) return;
-    if (!STRUDEL.previewSeedId) return;
-    STRUDEL.previewSeedId = null;
-    playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-  }
-
-  async function setSoundEnabled(on) {
-    // aqui NÃO inicializa por trás — exige que "Criar som" tenha sido clicado ao menos 1x
-    const ok = STRUDEL.ready || (await ensureStrudelReady());
-    if (!ok) return;
-
-    const FADE_MS = 120;
-    if (on) {
-      STRUDEL.enabled = true;
-      stopStrudelAll();
-      // liga já tocando
-      setTimeout(() => {
-        playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-      }, FADE_MS);
-    } else {
-      setTimeout(() => {
-        stopStrudelAll();
-        STRUDEL.enabled = false;
-      }, FADE_MS);
-    }
-  }
-
-  // Expor helpers pra UI / outros handlers
-  window.CEU_STRUDEL_PLAY = () => playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-  window.CEU_STRUDEL_STOP = () => stopStrudelAll();
-  window.CEU_STRUDEL_PREVIEW = (id) => previewSeedLayer(id);
-  window.CEU_STRUDEL_CLEAR_PREVIEW = () => clearPreviewSeedLayer();
-
-  // =====================================================
-  // Hydra eval (seguro)
-  // =====================================================
   function safeEvalHydra(code) {
     (0, eval)(code);
   }
@@ -722,9 +635,8 @@ a.show()
     markLockedSeed(null);
     applyPresetFxToDisplay(state.activePreset, state);
 
+    strudelSetSeedEffect(null);
     // Strudel: limpa overlay lock e volta só para base do triângulo
-    STRUDEL.lockedSeedId = null;
-    if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: null });
   }
 
   // =====================================================
@@ -916,9 +828,6 @@ a.show()
         clearTimeout(closeT);
         openSeedBubble(el);
                 // STRUDEL preview (desktop)
-        previewSeedLayer(post.id);
-
-
         const fx = randomFxFromSeed(post.id + "::hover::" + Date.now() + "::" + Math.random());
         window.CEU_PREVIEW_SEED_ID = post.id;
         window.CEU_PREVIEW_FX = fx;
@@ -927,7 +836,6 @@ a.show()
         applyPresetFxToDisplay(state.activePreset, state);
 
         // Strudel preview (sem fixar)
-        previewSeedLayer(post.id);
       });
 
       el.addEventListener("pointerleave", () => {
@@ -939,10 +847,6 @@ a.show()
         applyPresetFxToDisplay(state.activePreset, state);
 
         // Strudel: remove preview e volta para base+lock
-        clearPreviewSeedLayer();
-          
-
-
         closeT = setTimeout(() => {
           el.classList.remove("is-open");
           el.style.zIndex = "";
@@ -972,15 +876,12 @@ a.show()
 
       markLockedSeed(el);
       // STRUDEL lock layer
-      STRUDEL.lockedSeedId = post.id;
-      if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
 
       window.CEU_HOVER = 0;
       applyPresetFxToDisplay(state.activePreset, state);
 
       // Strudel: fixa camada do seed (overlay)
-      STRUDEL.lockedSeedId = post.id;
-      if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: post.id });
+      strudelSetSeedEffect(post.id);
     });
 
     // desktop: dblclick abre viewer (sem mexer no lock)
@@ -1250,31 +1151,23 @@ a.show()
 
         const id = String(btn.getAttribute("data-preset") || "").toUpperCase();
         if (!PRESET_IDS.includes(id)) return;
-
         state.activePreset = id;
-                // STRUDEL: troca a base do triângulo (se som estiver ligado)
-        STRUDEL.triangleId = id;
-        if (STRUDEL.enabled) {
-          playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-        }
 
         saveState(state);
 
         closeAllSeedBubbles();
         clearSeedLock(state);
-            // STRUDEL: remove layer lock
-    STRUDEL.lockedSeedId = null;
-    if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: null });
-
 
         miniApi?.syncEditorFromState?.();
         runActivePreset(state);
         setActiveUI();
 
-        // Strudel: triângulo muda melodia base (mantém “Som: on/off” como está)
-        STRUDEL.triangleId = id;
-        if (STRUDEL.enabled) playStrudelMix({ triId: id, lockedSeedId: STRUDEL.lockedSeedId });
-      });
+        // Strudel: triângulo define o código musical
+        try {
+          const sStr = loadStrudelState();
+          strudelSetTriangle(id, sStr.codes[id] || '');
+          strudelSetSeedEffect(sStr.seedByTri?.[id] || null);
+        } catch {}      });
     });
 
     setActiveUI();
@@ -1359,7 +1252,6 @@ a.show()
       applyPresetFxToDisplay(state.activePreset, state);
 
       // Strudel preview off
-      clearPreviewSeedLayer();
     });
 
     // dblclick no background: remove lock
@@ -1446,132 +1338,115 @@ a.show()
 
     setupPresetDock(state, miniApi);
 
+        // ==========================
+    // SOM (Strudel) — criar / on-off / mini editor
     // ==========================
-    // CRIE (menu) — Visuais / Sons
-    // ==========================
-    const openCreate = document.getElementById("openCreate");
-    const createMenu = document.getElementById("createMenu");
-    const openHydraMiniBtn = document.getElementById("openHydraMini");
-    const openStrudelMini = document.getElementById("openStrudelMini");
+    const createSoundBtn = document.getElementById("createSound");
 
-    function setCreateMenu(on) {
-      if (!createMenu || !openCreate) return;
-      const v = !!on;
-      createMenu.hidden = !v;
-      openCreate.setAttribute("aria-expanded", v ? "true" : "false");
+// ====== Crie (menu) ======
+const openCreate = document.getElementById('openCreate');
+const createMenu = document.getElementById('createMenu');
+const openStrudelMini = document.getElementById('openStrudelMini');
+
+function setCreateMenu(open) {
+  if (!createMenu || !openCreate) return;
+  createMenu.hidden = !open;
+  openCreate.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+openCreate?.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  const open = !!createMenu?.hidden;
+  setCreateMenu(open);
+});
+
+// fecha menu ao clicar fora
+document.addEventListener('pointerdown', (e) => {
+  if (e.target?.closest?.('#createDock')) return;
+  setCreateMenu(false);
+});
+
+// ===== Mini Strudel (iframe isolado) =====
+const strudelMini = document.getElementById('strudelMini');
+const closeStrudelMini = document.getElementById('closeStrudelMini');
+
+const strudelState = loadStrudelState();
+
+// envia defaults e estado inicial para o iframe
+window.addEventListener('message', (ev) => {
+  const d = ev.data || {};
+  if (d.__ceu !== 'strudel') return;
+  if (d.type === 'ready') {
+    postToStrudel({ type: 'setDefaults', defaults: STRUDEL_DEFAULTS });
+    const tri = PRESET_IDS.includes(state.activePreset) ? state.activePreset : 'A';
+    strudelSetTriangle(tri, strudelState.codes[tri] || '');
+    strudelSetSeedEffect(strudelState.seedByTri?.[tri] || null);
+  }
+});
+
+function openStrudelPanel(ev) {
+  ev?.preventDefault?.();
+  ev?.stopPropagation?.();
+  initHydraBackground();
+
+  if (!strudelMini) return;
+
+  if (strudelMini.hidden) {
+    const r = document.getElementById('openCreate')?.getBoundingClientRect?.();
+    strudelMini.hidden = false;
+    if (r) {
+      const margin = 10;
+      const left = clamp(r.left, margin, window.innerWidth - strudelMini.offsetWidth - margin);
+      const top = clamp(r.top - strudelMini.offsetHeight - 10, margin, window.innerHeight - strudelMini.offsetHeight - margin);
+      strudelMini.style.left = `${left}px`;
+      strudelMini.style.top = `${top}px`;
+    } else {
+      strudelMini.style.left = '90px';
+      strudelMini.style.top = '150px';
     }
 
-    openCreate?.addEventListener("click", (e) => {
-      e.preventDefault(); e.stopPropagation();
-      setCreateMenu(createMenu?.hidden);
-    });
+    // sincroniza tri + código
+    const tri = PRESET_IDS.includes(state.activePreset) ? state.activePreset : 'A';
+    strudelSetTriangle(tri, strudelState.codes[tri] || '');
+    strudelSetSeedEffect(strudelState.seedByTri?.[tri] || null);
+  } else {
+    strudelMini.hidden = true;
+  }
+}
 
-    // ao escolher "Visuais", fecha o menu e deixa o handler do mini editor agir
-    openHydraMiniBtn?.addEventListener("click", () => setCreateMenu(false));
+function closeStrudelPanel(ev) {
+  ev?.preventDefault?.();
+  ev?.stopPropagation?.();
+  if (strudelMini) strudelMini.hidden = true;
+}
 
-    document.addEventListener("pointerdown", (e) => {
-      if (!createMenu || createMenu.hidden) return;
-      if (e.target?.closest?.(".createWrap")) return;
-      setCreateMenu(false);
-    });
+openStrudelMini?.addEventListener('click', openStrudelPanel);
+closeStrudelMini?.addEventListener('click', closeStrudelPanel);
 
-    window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") setCreateMenu(false);
-    });
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && strudelMini && !strudelMini.hidden) closeStrudelPanel(e);
+});
 
-    // ==========================
-    // SOM (Strudel) — on/off + mini editor
-    // ==========================
-    const soundBtn = document.getElementById("toggleSound");
-    const savedSound = localStorage.getItem("ceu_sound_enabled") === "1";
-    STRUDEL.triangleId = state.activePreset;
+// Salva o código do Strudel quando o iframe pedir
+window.addEventListener('message', (ev) => {
+  const d = ev.data || {};
+  if (d.__ceu !== 'strudel') return;
+  if (d.type === 'saveCode' && d.triangleId && typeof d.code === 'string') {
+    const id = String(d.triangleId).toUpperCase();
+    if (!PRESET_IDS.includes(id)) return;
+    strudelState.codes[id] = d.code;
+    saveStrudelState(strudelState);
+  }
+  if (d.type === 'saveSeed' && d.triangleId) {
+    const id = String(d.triangleId).toUpperCase();
+    if (!PRESET_IDS.includes(id)) return;
+    strudelState.seedByTri[id] = d.seedId || null;
+    saveStrudelState(strudelState);
+  }
+});
 
-    if (savedSound && soundBtn) {
-      soundBtn.textContent = "Som: off";
-      soundBtn.setAttribute("aria-pressed", "false");
-    }
-
-    soundBtn?.addEventListener("click", async (e) => {
-      e.preventDefault(); e.stopPropagation();
-      const ok = await ensureStrudelReady();
-      if (!ok) { alert("Strudel não carregou. Veja o console."); return; }
-      const turningOn = !STRUDEL.enabled;
-      await setSoundEnabled(turningOn);
-      localStorage.setItem("ceu_sound_enabled", turningOn ? "1" : "0");
-      soundBtn.textContent = turningOn ? "Som: on" : "Som: off";
-      soundBtn.setAttribute("aria-pressed", turningOn ? "true" : "false");
-      if (turningOn) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-    });
-
-    // mini editor Strudel
-    const strudelPanel = document.getElementById("strudelMini");
-    const closeStrudelMini = document.getElementById("closeStrudelMini");
-    const strudelCode = document.getElementById("strudelCode");
-    const runStrudel = document.getElementById("runStrudel");
-    const stopStrudel = document.getElementById("stopStrudel");
-
-    if (strudelCode && !strudelCode.value) {
-      strudelCode.value =
-`setcps(1)
-note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85).play()
-// parar: hush()`;
-    }
-
-    function openStrudelPanel(ev){
-      ev?.preventDefault?.(); ev?.stopPropagation?.();
-      if (!strudelPanel) return;
-      setCreateMenu(false);
-      strudelPanel.hidden = !strudelPanel.hidden;
-    }
-    openStrudelMini?.addEventListener("click", openStrudelPanel);
-    closeStrudelMini?.addEventListener("click", (e)=>{ e.preventDefault(); e.stopPropagation(); if(strudelPanel) strudelPanel.hidden = true; });
-
-    function evalStrudel(code){
-      const S = window.CEU_STRUDEL;
-      if (!S) throw new Error("CEU_STRUDEL indisponível");
-      const fn = new Function("note","n","s","hush","setcps", '"use strict";\n' + String(code || ""));
-      return fn(S.note, S.n, S.s, S.hush, S.setcps);
-    }
-
-    async function ensureSoundOn() {
-      const ok = await ensureStrudelReady();
-      if (!ok) return false;
-      if (!STRUDEL.enabled) {
-        await setSoundEnabled(true);
-        localStorage.setItem("ceu_sound_enabled", "1");
-        if (soundBtn) {
-          soundBtn.textContent = "Som: on";
-          soundBtn.setAttribute("aria-pressed", "true");
-        }
-      }
-      return true;
-    }
-
-    runStrudel?.addEventListener("click", async (e) => {
-      e.preventDefault(); e.stopPropagation();
-      const ok = await ensureSoundOn();
-      if (!ok) { alert("Strudel não carregou. Veja o console."); return; }
-      try { evalStrudel(strudelCode?.value || ""); } catch(err){ console.error(err); alert("Erro no Strudel. Veja o console."); }
-    });
-
-    stopStrudel?.addEventListener("click", (e) => {
-      e.preventDefault(); e.stopPropagation();
-      try { window.CEU_STRUDEL?.hush?.(); } catch {}
-    });
-
-    // atalho: Alt+Enter roda o Strudel editor (Ctrl+Enter já é Hydra)
-    window.addEventListener("keydown", async (e) => {
-      const tag = (document.activeElement?.tagName || "").toLowerCase();
-      const typing = tag === "textarea" || tag === "input";
-      const isStrudelCode = document.activeElement?.id === "strudelCode";
-      if (typing && !isStrudelCode) return;
-      if (e.altKey && e.key === "Enter") {
-        e.preventDefault(); e.stopPropagation();
-        const ok = await ensureSoundOn();
-        if (!ok) { alert("Strudel não carregou. Veja o console."); return; }
-        try { evalStrudel(strudelCode?.value || ""); } catch(err){ console.error(err); alert("Erro no Strudel. Veja o console."); }
-      }
-    });
+if (strudelMini) enableFloatDragResize(strudelMini);
 
     // abrir composer
     openComposer?.addEventListener("click", () => {

@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Mini Strudel</title>
+  <style>
+    :root{
+      --bg: rgba(10,14,20,.62);
+      --glass: rgba(255,255,255,.08);
+      --glass2: rgba(255,255,255,.12);
+      --stroke: rgba(255,255,255,.18);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.62);
+      --accent: rgba(170, 225, 255, .95);
+      --shadow: 0 18px 50px rgba(0,0,0,.42);
+      --r: 16px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --ui: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    *{ box-sizing: border-box; }
+    html,body{ height:100%; margin:0; }
+    body{
+      font-family: var(--ui);
+      color: var(--text);
+      background: transparent;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      padding:10px;
+    }
+    .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .pill{
+      padding:6px 10px;
+      border-radius: 999px;
+      background: var(--glass);
+      border: 1px solid var(--stroke);
+      box-shadow: 0 8px 28px rgba(0,0,0,.22);
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: .02em;
+    }
+    .pill strong{ color: var(--text); font-weight: 650; }
+    .btn{
+      appearance:none; border:0; cursor:pointer;
+      padding:9px 12px;
+      border-radius: 999px;
+      color: var(--text);
+      background: linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.08));
+      border: 1px solid rgba(255,255,255,.18);
+      box-shadow: 0 14px 40px rgba(0,0,0,.34);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      font-size: 13px;
+    }
+    .btn:hover{ background: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.10)); }
+    .btn:active{ transform: translateY(1px); }
+    .btn--accent{
+      border-color: rgba(170,225,255,.35);
+      box-shadow: 0 14px 48px rgba(60,150,210,.18), 0 18px 60px rgba(0,0,0,.36);
+    }
+    .btn--ghost{
+      background: rgba(255,255,255,.06);
+      box-shadow: none;
+    }
+    textarea{
+      width:100%;
+      min-height: 220px;
+      resize: vertical;
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(5,8,12,.55);
+      border: 1px solid rgba(255,255,255,.16);
+      color: rgba(255,255,255,.92);
+      outline: none;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.35;
+      box-shadow: 0 18px 60px rgba(0,0,0,.40);
+    }
+    textarea:focus{ border-color: rgba(170,225,255,.45); box-shadow: 0 18px 60px rgba(0,0,0,.40), 0 0 0 3px rgba(170,225,255,.12); }
+    .hint{ font-size: 12px; color: var(--muted); }
+    .hint code{ font-family: var(--mono); color: rgba(255,255,255,.84); }
+    .status{ min-height: 16px; font-size: 12px; color: rgba(255,255,255,.78); }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <div class="pill">Triângulo: <strong id="tri">A</strong></div>
+    <div class="pill">Efeito (seed): <strong id="seed">—</strong></div>
+    <div style="flex:1"></div>
+    <button id="enable" class="btn btn--accent">Ativar áudio</button>
+    <button id="run" class="btn">Rodar</button>
+    <button id="stop" class="btn btn--ghost">Parar</button>
+    <button id="reset" class="btn btn--ghost">Reset</button>
+  </div>
+
+  <textarea id="code" spellcheck="false"></textarea>
+  <div class="row" style="justify-content:space-between; gap:10px;">
+    <div class="hint">Dica: <code>Ctrl/⌘ + Enter</code> para rodar.</div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <script type="module">
+    import { initStrudel } from "https://cdn.jsdelivr.net/npm/@strudel/web@1.0.3/dist/index.mjs";
+
+    const $ = (id) => document.getElementById(id);
+    const triEl = $("tri");
+    const seedEl = $("seed");
+    const codeEl = $("code");
+    const statusEl = $("status");
+
+    let strudelInited = false;
+    let currentTriangle = "A";
+    let currentSeed = null;
+    let defaults = {};
+
+    // salva edits no parent
+    codeEl.addEventListener('input', () => {
+      parent?.postMessage?.({ __ceu: 'strudel', type: 'saveCode', triangleId: currentTriangle, code: codeEl.value }, '*');
+    });
+
+    function setStatus(msg) {
+      statusEl.textContent = msg || "";
+    }
+
+    function hash01(str){
+      let h = 2166136261;
+      for (let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h,16777619); }
+      return ((h>>>0)%10000)/10000;
+    }
+
+    function seedOverlayCode(seedId){
+      if (!seedId) return "";
+      const r = hash01(seedId);
+      const cps = (0.55 + r*0.65).toFixed(3);
+      const g = (0.35 + r*0.35).toFixed(3);
+      const room = (0.18 + r*0.40).toFixed(3);
+      const choice = Math.floor(r*4);
+      const notes = choice===0 ? "<c4 eb4 g4 bb4>(3,8)" : choice===1 ? "<d4 f4 a4 c5>(3,8)" : choice===2 ? "<e4 g4 b4 d5>(3,8)" : "<a3 c4 e4 g4>(3,8)";
+      const inst = choice===0 ? "sine" : choice===1 ? "saw" : choice===2 ? "gm_electric_piano_1" : "gm_pad_1_new_age";
+      return `\n// --- seed overlay (${seedId}) ---\ntry {\n  // overlay não toca no Hydra; é só uma camada musical\n  setcps(${cps});\n  note('${notes}').s('${inst}').dec(.18).room(${room}).gain(${g}).play();\n} catch (e) { console.warn(e); }\n`;
+    }
+
+    function evalStrudel(code){
+      if (!strudelInited) {
+        setStatus("Clique em ‘Ativar áudio’ primeiro.");
+        return;
+      }
+      try {
+        // strudel vive aqui dentro do iframe: hush não afeta o Hydra
+        if (typeof hush === 'function') hush();
+      } catch {}
+
+      try {
+        (0, eval)(code);
+        setStatus("ok");
+      } catch (e) {
+        console.error(e);
+        setStatus("erro (veja o console)");
+      }
+    }
+
+    function run(){
+      const base = (codeEl.value || "").toString();
+      const full = base + seedOverlayCode(currentSeed);
+      evalStrudel(full);
+    }
+
+    $("enable").addEventListener("click", async () => {
+      try {
+        await initStrudel({ prebake: false });
+        strudelInited = true;
+        setStatus("áudio ativo");
+        // auto-run uma vez
+        run();
+      } catch (e) {
+        console.error(e);
+        setStatus("falhou ao ativar áudio");
+      }
+    });
+
+    $("run").addEventListener("click", (e) => { e.preventDefault(); run(); });
+    $("stop").addEventListener("click", (e) => {
+      e.preventDefault();
+      try { if (typeof hush === 'function') hush(); } catch {}
+      setStatus("parado");
+    });
+
+    $("reset").addEventListener("click", (e) => {
+      e.preventDefault();
+      const def = defaults[currentTriangle];
+      if (def) codeEl.value = def;
+      currentSeed = null;
+      seedEl.textContent = "—";
+      setStatus("reset");
+    });
+
+    // Ctrl/⌘ + Enter
+    window.addEventListener("keydown", (e) => {
+      const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (mod && e.key === "Enter") {
+        e.preventDefault();
+        run();
+      }
+    });
+
+    // Mensagens do pai
+    window.addEventListener("message", (ev) => {
+      const data = ev.data || {};
+      if (data.__ceu !== "strudel") return;
+
+      if (data.type === "setDefaults") {
+        defaults = data.defaults || {};
+        return;
+      }
+
+      if (data.type === "setTriangle") {
+        currentTriangle = (data.triangleId || "A").toUpperCase();
+        triEl.textContent = currentTriangle;
+        if (typeof data.code === "string") codeEl.value = data.code;
+        parent?.postMessage?.({ __ceu: 'strudel', type: 'saveCode', triangleId: currentTriangle, code: codeEl.value }, '*');
+        return;
+      }
+
+      if (data.type === "setCode") {
+        if (typeof data.code === "string") codeEl.value = data.code;
+        return;
+      }
+
+      if (data.type === "seedEffect") {
+        currentSeed = data.seedId || null;
+        seedEl.textContent = currentSeed ? (String(currentSeed).slice(0,8) + "…") : "—";
+        parent?.postMessage?.({ __ceu: 'strudel', type: 'saveSeed', triangleId: currentTriangle, seedId: currentSeed }, '*');
+        // se já estiver ativo, re-roda (sem tocar no Hydra)
+        if (strudelInited) run();
+        return;
+      }
+
+      if (data.type === "run") {
+        run();
+        return;
+      }
+
+      if (data.type === "stop") {
+        try { if (typeof hush === 'function') hush(); } catch {}
+        setStatus("parado");
+        return;
+      }
+    });
+
+    // pronto
+    parent?.postMessage?.({ __ceu: "strudel", type: "ready" }, "*");
+  </script>
+</body>
+</html>
