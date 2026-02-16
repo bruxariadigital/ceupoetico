@@ -39,9 +39,13 @@
         Plantar uma semente
       </button>
 
-      <button id="openHydraMini" class="fab" type="button">
-        Crie
-      </button>
+      <div class="createWrap" id="createWrap">
+      <button id="openCreate" class="fab" type="button" aria-expanded="false">Crie</button>
+      <div id="createMenu" class="createMenu" role="menu" aria-label="Criar" hidden>
+        <button id="openHydraMini" class="btn btn--ghost createMenu__item" type="button" role="menuitem">Visuais</button>
+        <button id="openStrudelMini" class="btn btn--ghost createMenu__item" type="button" role="menuitem">Sons</button>
+      </div>
+    </div>
     </div>
 
     <!-- Mini editor -->
@@ -127,9 +131,34 @@
       <p id="viewerMeta" class="viewerMeta"></p>
     </div>
   </dialog>
+<!-- MINI EDITOR STRUDEL -->
+<div id="strudelMini" class="mini mini--strudel" hidden>
+  <div class="mini__top">
+    <strong>Strudel</strong>
+    <div class="mini__topActions">
+      <button id="createSound" class="btn btn--tiny btn--ghost">Criar som</button>
+      <button id="toggleSound" class="btn btn--tiny" aria-pressed="false">Som: off</button>
+      <button id="runStrudel" class="btn btn--tiny">Rodar</button>
+      <button id="stopStrudel" class="btn btn--tiny btn--ghost">Parar</button>
+      <button id="closeStrudelMini" class="btn btn--tiny btn--ghost">✕</button>
+    </div>
+  </div>
+
+  <textarea id="strudelCode" spellcheck="false"></textarea>
+
+  <div class="mini__hint">
+    Atalhos: <kbd>Ctrl</kbd>+<kbd>Enter</kbd> roda • <kbd>Alt</kbd>+<kbd>Enter</kbd> roda Strudel • <kbd>Y</kbd> overlay do Hydra
+  </div>
+</div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://unpkg.com/hydra-synth"></script>
   <script defer src="./app.js"></script>
+<!-- STRUDEL (API global: initStrudel, note, hush...) -->
+<script src="https://unpkg.com/@strudel/web@1.0.3"></script>
+
+<pre id="codeOverlay" class="codeOverlay" aria-hidden="true"></pre>
+
+  
 </body>
 </html>
