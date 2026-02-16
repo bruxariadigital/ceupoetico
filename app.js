@@ -34,28 +34,6 @@
     }
   }
 
-  const DRAFT_KEY = "CEUPOETICO_COMPOSER_DRAFT_V1";
-
-  function draftStorageKey() {
-    return `${DRAFT_KEY}::${getUserKey()}`;
-  }
-
-  function loadComposerDraft() {
-    try { return localStorage.getItem(draftStorageKey()) || ""; } catch { return ""; }
-  }
-
-  function saveComposerDraft(text) {
-    try {
-      const v = (text ?? "").toString();
-      if (!v.trim()) localStorage.removeItem(draftStorageKey());
-      else localStorage.setItem(draftStorageKey(), v);
-    } catch {}
-  }
-
-  function clearComposerDraft() {
-    try { localStorage.removeItem(draftStorageKey()); } catch {}
-  }
-
   // =====================================================
   // PRESETS (A/B/C/D) + buffers
   // Reservamos o3 como DISPLAY final (pós-processamento)
@@ -64,6 +42,7 @@
   const PRESET_IDS = ["A", "B", "C", "D"];
 
   const PRESET_DEFAULTS = {
+    // A: (novo) — PARA VOCÊ, O QUE É SER POTIGUAR?
     A: {
       name: "A",
       renderBuf: "o0",
@@ -82,6 +61,7 @@ a.show()
 `
     },
 
+    // B: (antigo A) — espelho simples
     B: {
       name: "B",
       renderBuf: "o0",
@@ -101,6 +81,7 @@ a.show()
 `
     },
 
+    // C: (mantém) — olá, mundo
     C: {
       name: "C",
       renderBuf: "o0",
@@ -141,6 +122,7 @@ src(o2)
 `
     },
 
+    // D: (novo) — espelho (complexo)
     D: {
       name: "D",
       renderBuf: "o2",
@@ -182,6 +164,7 @@ a.show()
   };
 
   function defaultFx() {
+    // “menos saturado” por padrão
     return { contrast: 1.0, saturate: 0.95, brightness: 0.0, colorama: 0.0 };
   }
 
@@ -196,6 +179,7 @@ a.show()
     };
   }
 
+  // migração suave (se existir estado antigo, tenta reaproveitar)
   function getOrInitState() {
     const legacy = (() => {
       try {
@@ -206,17 +190,19 @@ a.show()
     })();
 
     const s = loadState();
-    const baseState = s || legacy;
 
+    const baseState = s || legacy;
     if (baseState?.userKey && baseState?.presets) {
       const next = defaultState();
       next.userKey = baseState.userKey || next.userKey;
 
+      // mantém código/fx se existir
       PRESET_IDS.forEach((id) => {
         if (baseState.presets?.[id]?.code) next.presets[id].code = baseState.presets[id].code;
         if (baseState.presets?.[id]?.fx) next.presets[id].fx = { ...defaultFx(), ...baseState.presets[id].fx };
       });
 
+      // se no legado existia A/C (antigos), mapeia pro novo B/C
       if (baseState.presets?.A?.code && !baseState.presets?.B?.code) {
         next.presets.B.code = baseState.presets.A.code;
         next.presets.B.fx = { ...defaultFx(), ...baseState.presets.A.fx };
@@ -264,11 +250,7 @@ a.show()
   let hydraInstance = null;
 
   window.CEU_HOVER = 0;
-  window.CEU_SEED_FX = null;
-  window.CEU_LOCKED_SEED_ID = null;
-  window.CEU_LOCKED_FX = null;
-  window.CEU_PREVIEW_SEED_ID = null;
-  window.CEU_PREVIEW_FX = null;
+  window.CEU_HOVER_FX = { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
 
   function fitHydraCanvasToScreen() {
     const canvas = document.getElementById("hydra-canvas");
@@ -305,246 +287,12 @@ a.show()
     window.addEventListener("orientationchange", () => setTimeout(fitHydraCanvasToScreen, 60));
   }
 
-  // =====================================================
-  // STRUDEL (áudio) — independente do Hydra
-  // Requer <script src="https://unpkg.com/@strudel/web@1.0.3"></script>
-  // (initStrudel, note, hush globais)  :contentReference[oaicite:2]{index=2}
-  // =====================================================
-  const STRUDEL = {
-    ready: false,
-    enabled: false,
-    triangleId: "A",
-    lockedSeedId: null,
-    previewSeedId: null,
-    basePattern: null,
-    overlayPattern: null,
-    overlayPreview: null,
-  };
-
-  // wrapper global esperado pelo resto do app
-  if (!window.CEU_STRUDEL) {
-    window.CEU_STRUDEL = {
-      init: async () => false,
-      hush: () => {},
-      // as funções musicais entram depois que initStrudel rodar
-    };
+  function hushIfPossible() {
+    try { if (typeof window.hush === "function") window.hush(); } catch {}
   }
 
-  function strudelAvailable() {
-    return typeof window.initStrudel === "function";
-  }
-
-  async function ensureStrudelReady() {
-    if (STRUDEL.ready) return true;
-    if (!strudelAvailable()) {
-      console.warn("Strudel: initStrudel() não existe. Confere se @strudel/web foi carregado antes do app.js");
-      return false;
-    }
-
-    try {
-      // IMPORTANTÍSSIMO: chamar isso após gesto do usuário (button click)
-      window.initStrudel(); // cria os globais note(), n(), s(), hush(), setcps(), etc.
-      // tenta “acordar” o audio context, se estiver suspenso
-      try {
-        const ctx =
-          window.Strudel?.context ||
-          window.strudel?.context ||
-          window.audioContext ||
-          window.CEU_STRUDEL?.context;
-        if (ctx?.state === "suspended" && typeof ctx.resume === "function") await ctx.resume();
-      } catch {}
-
-      // monta wrapper com o que o app usa
-      window.CEU_STRUDEL = {
-        init: async () => true,
-        hush: () => { try { window.hush?.(); } catch {} },
-        // expõe o namespace global (note/n/s/scale/etc)
-        note: (...a) => window.note(...a),
-        n: (...a) => window.n(...a),
-        s: (...a) => window.s(...a),
-        setcps: (...a) => window.setcps?.(...a),
-      };
-
-      STRUDEL.ready = true;
-      return true;
-    } catch (e) {
-      console.warn("Strudel init falhou:", e);
-      return false;
-    }
-  }
-
-  function stopStrudelAll() {
-    try { window.CEU_STRUDEL?.hush?.(); } catch {}
-    STRUDEL.basePattern = null;
-    STRUDEL.overlayPattern = null;
-    STRUDEL.overlayPreview = null;
-  }
-
-  function hash01(str) {
-    let h = 2166136261;
-    for (let i = 0; i < str.length; i++) {
-      h ^= str.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    return ((h >>> 0) % 10000) / 10000;
-  }
-
-  function buildTrianglePattern(triId) {
-    const S = window.CEU_STRUDEL;
-    // base bem “musical” e leve (você ajusta depois)
-    if (triId === "A") return S.note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85);
-    if (triId === "B") return S.note("<d4 f4 a4 c5>(3,8)").s("saw").dec(.22).room(.38).gain(.78);
-    if (triId === "C") return S.note("<e4 g4 b4 d5>(3,8)").s("gm_lead_1_square").dec(.20).room(.32).gain(.80);
-    return S.note("<a3 c4 e4 g4>(3,8)").s("gm_electric_piano_1").dec(.24).room(.36).gain(.75);
-  }
-
-  function buildSeedLayer(seedId, mode) {
-    const S = window.CEU_STRUDEL;
-    const r = hash01(seedId);
-    const scale = r < 0.33 ? "C:minor" : (r < 0.66 ? "D:minor" : "A:minor");
-    const inst = r < 0.25 ? "hh" : (r < 0.5 ? "gm_pad_1_new_age" : (r < 0.75 ? "gm_bass_2_finger" : "bd"));
-    const dense = r < 0.5 ? 8 : 16;
-    const g = mode === "preview" ? 0.55 : 0.70;
-    const rm = mode === "preview" ? 0.55 : 0.72;
-
-    if (inst === "hh" || inst === "bd") {
-      return S.s(`${inst}*${dense}`).gain(g).room(rm);
-    }
-    return S.n("<0 2 4 7>*4").scale(scale).s(inst).dec(.18).gain(g).room(rm);
-  }
-
-  function playStrudelMix({ triId, lockedSeedId }) {
-    if (!STRUDEL.enabled) return;
-    if (!window.CEU_STRUDEL?.note) return;
-
-    stopStrudelAll();
-    STRUDEL.triangleId = triId;
-    STRUDEL.lockedSeedId = lockedSeedId || null;
-
-    const base = buildTrianglePattern(triId);
-    STRUDEL.basePattern = base;
-    base.play();
-
-    if (STRUDEL.lockedSeedId) {
-      const layer = buildSeedLayer(STRUDEL.lockedSeedId, "lock");
-      STRUDEL.overlayPattern = layer;
-      layer.play();
-    }
-  }
-
-  function previewSeedLayer(seedId) {
-    if (!STRUDEL.enabled) return;
-    if (!window.CEU_STRUDEL?.note) return;
-    if (seedId === STRUDEL.lockedSeedId) return;
-    if (seedId === STRUDEL.previewSeedId) return;
-
-    // reconstrói base + lock, depois preview (sem acumular)
-    try {
-      window.CEU_STRUDEL.hush();
-      buildTrianglePattern(STRUDEL.triangleId).play();
-      if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").play();
-    } catch {}
-
-    STRUDEL.previewSeedId = seedId;
-    STRUDEL.overlayPreview = buildSeedLayer(seedId, "preview");
-    STRUDEL.overlayPreview.play();
-  }
-
-  function clearPreviewSeedLayer() {
-    if (!STRUDEL.enabled) return;
-    if (!STRUDEL.previewSeedId) return;
-    STRUDEL.previewSeedId = null;
-    playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-  }
-
-  async function setSoundEnabled(on) {
-    // aqui NÃO inicializa por trás — exige que "Criar som" tenha sido clicado ao menos 1x
-    const ok = STRUDEL.ready || (await ensureStrudelReady());
-    if (!ok) return;
-
-    const FADE_MS = 120;
-    if (on) {
-      STRUDEL.enabled = true;
-      stopStrudelAll();
-      // liga já tocando
-      setTimeout(() => {
-        playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-      }, FADE_MS);
-    } else {
-      setTimeout(() => {
-        stopStrudelAll();
-        STRUDEL.enabled = false;
-      }, FADE_MS);
-    }
-  }
-
-  // Expor helpers pra UI / outros handlers
-  window.CEU_STRUDEL_PLAY = () => playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-  window.CEU_STRUDEL_STOP = () => stopStrudelAll();
-  window.CEU_STRUDEL_PREVIEW = (id) => previewSeedLayer(id);
-  window.CEU_STRUDEL_CLEAR_PREVIEW = () => clearPreviewSeedLayer();
-
-  // =====================================================
-  // Hydra eval (seguro)
-  // =====================================================
   function safeEvalHydra(code) {
     (0, eval)(code);
-  }
-
-  // =====================================================
-  // Hydra FX aleatório por bolha (hover/click)
-  // =====================================================
-  function randomFxFromSeed(seedKey) {
-    const s = String(seedKey);
-    const r1 = hash01(s + "::fx1");
-    const r2 = hash01(s + "::fx2");
-    const r3 = hash01(s + "::fx3");
-
-    const pick = Math.floor(r1 * 16);
-    const a = 0.18 + r2 * 0.82;
-    const b = 0.65 + r3 * 1.75;
-    const c = r1;
-    const d = r2;
-
-    return { pick, a, b, c, d };
-  }
-
-  function applyRandomSeedFx(node, fxObj) {
-    if (!fxObj) return node;
-
-    const p = (fxObj.pick ?? 0) % 16;
-    const a = fxObj.a ?? 0.6;
-    const b = fxObj.b ?? 1.0;
-    const c = fxObj.c ?? 0.5;
-    const d = fxObj.d ?? 0.5;
-
-    const mOsc = osc(6 + b * 10, 0.02 + a * 0.12, 0.8 + c * 1.2);
-    const mNoise = noise(1.2 + b * 2.5, 0.15 + a * 0.35);
-
-    try {
-      if (p === 0) return node.invert(a * 0.85);
-      if (p === 1) return node.posterize(2 + Math.floor(b * 6), 0.55 + d * 0.35);
-      if (p === 2) return node.kaleid(2 + Math.floor(b * 10)).rotate(() => a * 0.45);
-      if (p === 3) return node.pixelate(10 + Math.floor(b * 40), 8 + Math.floor(a * 26));
-      if (p === 4) return node.thresh(0.25 + a * 0.35, 0.06 + d * 0.2);
-      if (p === 5) return node.luma(() => 0.22 + a * 0.55, 0.12 + d * 0.25);
-      if (p === 6) return node.color(0.6 + a * 0.8, 0.55 + d * 0.9, 0.8 + c * 0.7).saturate(0.9 + a * 1.4);
-      if (p === 7) return node.hue(() => (c - 0.5) * 1.2).contrast(1.0 + a * 0.5);
-
-      if (p === 8) return node.scrollX(() => (a - 0.5) * 0.06, () => (d - 0.5) * 0.03)
-        .scrollY(() => (d - 0.5) * 0.06, () => (a - 0.5) * 0.03);
-
-      if (p === 9) return node.repeat(1 + Math.floor(b * 3), 1 + Math.floor(d * 3), 0.0, 0.0).rotate(() => a * 0.15);
-
-      if (p === 10) return node.modulateRotate(mOsc, () => a * 0.65).contrast(1.0 + a * 0.35);
-      if (p === 11) return node.modulateScale(mNoise, () => 0.8 + a * 1.0, () => a * 0.22);
-      if (p === 12) return node.modulate(mOsc, () => a * 0.25).brightness(() => 0.02 + d * 0.08);
-      if (p === 13) return node.modulateKaleid(mOsc, 2 + Math.floor(b * 8));
-      if (p === 14) return node.add(mNoise, 0.12 + a * 0.22).contrast(1.05 + d * 0.35);
-      return node.diff(mOsc, 0.18 + a * 0.28).saturate(1.0 + a * 0.9);
-    } catch {
-      return node;
-    }
   }
 
   function applyPresetFxToDisplay(presetId, state) {
@@ -554,30 +302,17 @@ a.show()
     const outBuf = globalThis[DISPLAY_BUF] || globalThis.o3;
 
     const fx = state.presets[presetId]?.fx || defaultFx();
+
+    // hover “aleatório por bolha”: um boost (h) + deltas por parâmetro
     const h = window.CEU_HOVER || 0;
-
-    const lockedFx = window.CEU_LOCKED_FX || null;
-    const previewFx = window.CEU_PREVIEW_FX || null;
-
-    const LOCK_MIX = 0.55;
-    const PREVIEW_MIX = 0.40;
+    const hf = window.CEU_HOVER_FX || { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
 
     try {
-      let base = src(srcBuf);
-      let affected = src(srcBuf);
-
-      affected = applyRandomSeedFx(affected, lockedFx);
-      affected = applyRandomSeedFx(affected, previewFx);
-
-      let chain = base;
-      if (lockedFx) chain = chain.blend(affected, LOCK_MIX);
-      if (previewFx) chain = chain.blend(affected, PREVIEW_MIX);
-
-      chain
-        .contrast(() => fx.contrast + h * 0.14)
-        .saturate(() => fx.saturate + h * 0.22)
-        .brightness(() => fx.brightness + h * 0.05)
-        .colorama(() => fx.colorama + h * 0.16)
+      src(srcBuf)
+        .contrast(() => fx.contrast + (h * 0.12) + (hf.contrast || 0))
+        .saturate(() => fx.saturate + (h * 0.18) + (hf.saturate || 0))
+        .brightness(() => fx.brightness + (h * 0.05) + (hf.brightness || 0))
+        .colorama(() => fx.colorama + (h * 0.12) + (hf.colorama || 0))
         .out(outBuf);
 
       if (typeof window.render === "function") window.render(outBuf);
@@ -588,6 +323,7 @@ a.show()
 
   function runActivePreset(state) {
     initHydraBackground();
+    hushIfPossible();
 
     const presetId = PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A";
     const code = (state.presets[presetId]?.code || PRESET_DEFAULTS[presetId]?.code || "").trim();
@@ -625,7 +361,7 @@ a.show()
   }
 
   // =====================================================
-  // SUPABASE (mural) — SEM async/await
+  // SUPABASE (mural)
   // =====================================================
   const SUPABASE_URL = "https://nroguehkffzgerirbdcn.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_87bQ1cjlVd6gw1Ugh45eYg_P8mTW2ZJ";
@@ -664,43 +400,40 @@ a.show()
     }
   }
 
-  function uploadMediaIfAny(file) {
-    if (!file) return Promise.resolve(null);
+  async function uploadMediaIfAny(file) {
+    if (!file) return null;
 
     const ext = (file.name.split(".").pop() || "bin").toLowerCase();
     const path = `${crypto.randomUUID()}.${ext}`;
 
-    return sb
+    const { error: upErr } = await sb
       .storage
       .from("mural")
-      .upload(path, file, { contentType: file.type, upsert: false })
-      .then(({ error: upErr }) => {
-        if (upErr) throw upErr;
-        const { data } = sb.storage.from("mural").getPublicUrl(path);
-        return data?.publicUrl || null;
-      });
+      .upload(path, file, { contentType: file.type, upsert: false });
+
+    if (upErr) throw upErr;
+
+    const { data } = sb.storage.from("mural").getPublicUrl(path);
+    return data?.publicUrl || null;
   }
 
-  function insertPost(text, mediaUrl, mediaType) {
-    return sb
+  async function insertPost(text, mediaUrl, mediaType) {
+    const { error } = await sb
       .from("mural_posts")
-      .insert([{ text: text || null, image_url: mediaUrl || null, media_type: mediaType || null }])
-      .then(({ error }) => {
-        if (error) throw error;
-        return true;
-      });
+      .insert([{ text: text || null, image_url: mediaUrl || null, media_type: mediaType || null }]);
+
+    if (error) throw error;
   }
 
-  function fetchPosts() {
-    return sb
+  async function fetchPosts() {
+    const { data, error } = await sb
       .from("mural_posts")
       .select("id, created_at, text, image_url, media_type")
       .order("created_at", { ascending: false })
-      .limit(220)
-      .then(({ data, error }) => {
-        if (error) throw error;
-        return data || [];
-      });
+      .limit(220);
+
+    if (error) throw error;
+    return data || [];
   }
 
   // =====================================================
@@ -720,34 +453,6 @@ a.show()
   }
 
   // =====================================================
-  // LOCK (bolha selecionada) + UI
-  // =====================================================
-  let CEU_LOCKED_SEED_EL = null;
-
-  function markLockedSeed(seedEl) {
-    if (CEU_LOCKED_SEED_EL && CEU_LOCKED_SEED_EL !== seedEl) {
-      CEU_LOCKED_SEED_EL.classList.remove("is-locked");
-    }
-    CEU_LOCKED_SEED_EL = seedEl || null;
-    if (seedEl) seedEl.classList.add("is-locked");
-  }
-
-  function clearSeedLock(state) {
-    window.CEU_LOCKED_SEED_ID = null;
-    window.CEU_LOCKED_FX = null;
-    window.CEU_PREVIEW_SEED_ID = null;
-    window.CEU_PREVIEW_FX = null;
-    window.CEU_SEED_FX = null;
-    window.CEU_HOVER = 0;
-    markLockedSeed(null);
-    applyPresetFxToDisplay(state.activePreset, state);
-
-    // Strudel: limpa overlay lock e volta só para base do triângulo
-    STRUDEL.lockedSeedId = null;
-    if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: null });
-  }
-
-  // =====================================================
   // VIEWER + GARDEN
   // =====================================================
   function pickGlyph(id) {
@@ -759,6 +464,19 @@ a.show()
     }
     return options[(h >>> 0) % options.length];
   }
+
+  function randomHoverFx() {
+    // deltas pequenos e elegantes (sem estourar saturação/colorama)
+    // cada bolha/hover “vira” um mini-preset temporário
+    return {
+      contrast:   (Math.random() * 0.20 - 0.08),   // -0.08 .. +0.12
+      saturate:   (Math.random() * 0.30 - 0.10),   // -0.10 .. +0.20
+      brightness: (Math.random() * 0.10 - 0.05),   // -0.05 .. +0.05
+      colorama:   (Math.random() * 0.18 - 0.06)    // -0.06 .. +0.12
+    };
+  }
+
+
 
   function openViewer(viewerEls, post) {
     const { viewer, viewerImg, viewerText, viewerMeta } = viewerEls;
@@ -803,6 +521,7 @@ a.show()
     const getGardenRect = () => (garden?.getBoundingClientRect?.() || { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight });
 
     el.addEventListener("pointerdown", (e) => {
+      // não inicia drag se clicou num elemento interativo dentro (bubble)
       if (e.target?.closest?.(".bubble")) return;
 
       moved = false;
@@ -831,6 +550,7 @@ a.show()
 
       const g = getGardenRect();
 
+      // posição do centro do seed (px -> %)
       const cx = (drag.startLeft + dx + (el.offsetWidth / 2) - g.left);
       const cy = (drag.startTop + dy + (el.offsetHeight / 2) - g.top);
 
@@ -850,6 +570,7 @@ a.show()
       el.style.animationPlayState = "";
       movedAt = Date.now();
 
+      // se arrastou, não deixa o click “abrir/fechar” disparar
       el.dataset.justDragged = moved ? "1" : "0";
       setTimeout(() => { el.dataset.justDragged = "0"; }, 220);
     };
@@ -857,6 +578,7 @@ a.show()
     el.addEventListener("pointerup", stop);
     el.addEventListener("pointercancel", stop);
 
+    // helper usado no click handler
     el._wasJustDragged = () => {
       const v = el.dataset.justDragged === "1";
       if (v && Date.now() - movedAt < 400) return true;
@@ -868,6 +590,9 @@ a.show()
     const el = document.createElement("button");
     el.className = "seed";
     el.type = "button";
+
+    // tooltip: descreve a função da bolha
+    el.setAttribute("data-tip", "Marca no céu: passe o mouse para ver o efeito; clique para abrir.");
 
     const x = 6 + Math.random() * 88;
     const y = 12 + Math.random() * 76;
@@ -913,55 +638,33 @@ a.show()
       bubble.appendChild(bText);
     }
 
-    const viewBtn = document.createElement("button");
-    viewBtn.type = "button";
-    viewBtn.className = "btn btn--tiny";
-    viewBtn.textContent = "ver";
-    viewBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      openViewer(viewerEls, post);
-    });
-    bubble.appendChild(viewBtn);
+    const hint = document.createElement("div");
+    hint.className = "bubbleHint";
+    hint.textContent = isHoverDesktop() ? "clique para abrir" : "toque de novo para abrir";
+    bubble.appendChild(hint);
 
     el.appendChild(bubble);
 
+    // drag (desktop + mobile)
     enableSeedDrag(el, garden);
 
-    // hover (desktop): abre bolha + preview FX Hydra + preview camada Strudel
+    // hover (somente desktop): abre bolha + hover FX
     if (isHoverDesktop()) {
       let closeT = null;
 
       el.addEventListener("pointerenter", () => {
         clearTimeout(closeT);
         openSeedBubble(el);
-                // STRUDEL preview (desktop)
-        previewSeedLayer(post.id);
 
-
-        const fx = randomFxFromSeed(post.id + "::hover::" + Date.now() + "::" + Math.random());
-        window.CEU_PREVIEW_SEED_ID = post.id;
-        window.CEU_PREVIEW_FX = fx;
-
-        window.CEU_HOVER = 0.22 + Math.random() * 0.35;
+        window.CEU_HOVER = 0.22 + Math.random() * 0.42;
+        window.CEU_HOVER_FX = randomHoverFx();
         applyPresetFxToDisplay(state.activePreset, state);
-
-        // Strudel preview (sem fixar)
-        previewSeedLayer(post.id);
       });
 
       el.addEventListener("pointerleave", () => {
-        
-        window.CEU_PREVIEW_SEED_ID = null;
-        window.CEU_PREVIEW_FX = null;
-
         window.CEU_HOVER = 0;
+        window.CEU_HOVER_FX = { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
         applyPresetFxToDisplay(state.activePreset, state);
-
-        // Strudel: remove preview e volta para base+lock
-        clearPreviewSeedLayer();
-          
-
 
         closeT = setTimeout(() => {
           el.classList.remove("is-open");
@@ -969,63 +672,80 @@ a.show()
         }, 180);
       });
     } else {
-      // mobile: evita callout
-      el.addEventListener("contextmenu", (e) => e.preventDefault());
+      // touch: simula "hover" com pressionar/soltar
+      // (permite ver os efeitos no mobile sem depender de hover real)
+      const touchBoost = () => {
+        // evita ativar se estava arrastando
+        if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
+        window.CEU_HOVER = 0.18 + Math.random() * 0.28;
+        window.CEU_HOVER_FX = randomHoverFx();
+        applyPresetFxToDisplay(state.activePreset, state);
+      };
+
+      const touchReset = () => {
+        window.CEU_HOVER = 0;
+        window.CEU_HOVER_FX = { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
+        applyPresetFxToDisplay(state.activePreset, state);
+      };
+
+      // pointer* funciona tanto em iOS/Android modernos quanto desktop
+      el.addEventListener("pointerdown", (e) => {
+        // só queremos isso quando o pointer é "coarse" (touch)
+        if (isHoverDesktop()) return;
+        if (e.target?.closest?.(".bubble")) return;
+        touchBoost();
+      });
+      el.addEventListener("pointerup", () => { if (!isHoverDesktop()) touchReset(); });
+      el.addEventListener("pointercancel", () => { if (!isHoverDesktop()) touchReset(); });
+
+      // fallback: alguns navegadores mobile ainda disparam melhor touch*
+      el.addEventListener("touchstart", () => { if (!isHoverDesktop()) touchBoost(); }, { passive: true });
+      el.addEventListener("touchend", () => { if (!isHoverDesktop()) touchReset(); }, { passive: true });
+      el.addEventListener("touchcancel", () => { if (!isHoverDesktop()) touchReset(); }, { passive: true });
     }
 
-    // click/tap: fixa lock (Hydra FX + Strudel camada)
+    // click/tap:
+    // - se arrastou agora: ignora
+    // - mobile: 1º abre bolha, 2º abre viewer
+    // - desktop: click abre viewer direto (bolha já abre no hover)
     el.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
 
       if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
 
-      openSeedBubble(el);
+      if (isHoverDesktop()) {
+        openViewer(viewerEls, post);
+        return;
+      }
 
-      const fx =
-        (window.CEU_PREVIEW_SEED_ID === post.id && window.CEU_PREVIEW_FX)
-          ? window.CEU_PREVIEW_FX
-          : randomFxFromSeed(post.id + "::lock::" + Date.now() + "::" + Math.random());
+      const isOpen = el.classList.contains("is-open");
+      if (!isOpen) {
+        openSeedBubble(el);
+        return;
+      }
 
-      window.CEU_LOCKED_SEED_ID = post.id;
-      window.CEU_LOCKED_FX = fx;
-
-      markLockedSeed(el);
-      // STRUDEL lock layer
-      STRUDEL.lockedSeedId = post.id;
-      if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-
-      window.CEU_HOVER = 0;
-      applyPresetFxToDisplay(state.activePreset, state);
-
-      // Strudel: fixa camada do seed (overlay)
-      STRUDEL.lockedSeedId = post.id;
-      if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: post.id });
-    });
-
-    // desktop: dblclick abre viewer (sem mexer no lock)
-    el.addEventListener("dblclick", (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
+      el.classList.remove("is-open");
+      el.style.zIndex = "";
       openViewer(viewerEls, post);
     });
 
     return el;
   }
 
-  function renderGarden(garden, viewerEls, state) {
-    if (!garden) return Promise.resolve();
-    if (!supabaseReady()) return Promise.resolve();
+  async function renderGarden(garden, viewerEls, state) {
+    if (!garden) return;
+    if (!supabaseReady()) return;
 
-    return fetchPosts()
-      .then((posts) => {
-        const ordered = (posts || []).reverse();
-        garden.innerHTML = "";
-        ordered.forEach((p) => garden.appendChild(createSeedEl(p, viewerEls, state, garden)));
-      })
-      .catch((err) => {
-        console.error("renderGarden falhou:", err);
-      });
+    try {
+      const posts = await fetchPosts();
+      const ordered = (posts || []).reverse();
+
+      garden.innerHTML = "";
+      ordered.forEach((p) => garden.appendChild(createSeedEl(p, viewerEls, state, garden)));
+    } catch (err) {
+      console.error("renderGarden falhou:", err);
+    }
   }
 
   // =====================================================
@@ -1041,14 +761,6 @@ a.show()
 
     if (!panel || !codeEl) return null;
 
-    // swap visual: "Reset códigos" antes do "clique-me..."
-    try {
-      const actions = panel.querySelector(".hydra-mini__actions");
-      if (actions && runBtn && resetLink) {
-        actions.insertBefore(resetLink, runBtn);
-      }
-    } catch {}
-
     const activeId = () => (PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A");
 
     function syncEditorFromState() {
@@ -1060,7 +772,6 @@ a.show()
       const id = activeId();
       state.presets[id].code = codeEl.value;
       saveState(state);
-      if (typeof window.CEU_updateCodeOverlay === "function") window.CEU_updateCodeOverlay();
     }, 200);
 
     codeEl.addEventListener("input", saveEditorToStateDebounced);
@@ -1110,7 +821,6 @@ a.show()
       saveState(state);
 
       runActivePreset(state);
-      if (typeof window.CEU_updateCodeOverlay === "function") window.CEU_updateCodeOverlay();
     });
 
     resetLink?.addEventListener("click", (ev) => {
@@ -1127,7 +837,6 @@ a.show()
 
       syncEditorFromState();
       runActivePreset(state);
-      if (typeof window.CEU_updateCodeOverlay === "function") window.CEU_updateCodeOverlay();
     });
 
     syncEditorFromState();
@@ -1272,28 +981,11 @@ a.show()
         if (!PRESET_IDS.includes(id)) return;
 
         state.activePreset = id;
-                // STRUDEL: troca a base do triângulo (se som estiver ligado)
-        STRUDEL.triangleId = id;
-        if (STRUDEL.enabled) {
-          playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-        }
-
         saveState(state);
-
-        closeAllSeedBubbles();
-        clearSeedLock(state);
-            // STRUDEL: remove layer lock
-    STRUDEL.lockedSeedId = null;
-    if (STRUDEL.enabled) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: null });
-
 
         miniApi?.syncEditorFromState?.();
         runActivePreset(state);
         setActiveUI();
-
-        // Strudel: triângulo muda melodia base (mantém “Som: on/off” como está)
-        STRUDEL.triangleId = id;
-        if (STRUDEL.enabled) playStrudelMix({ triId: id, lockedSeedId: STRUDEL.lockedSeedId });
       });
     });
 
@@ -1321,6 +1013,7 @@ a.show()
       closeDialogSafe(dlg);
     });
 
+    // fecha clicando fora do card
     dlg?.addEventListener("click", (e) => {
       const card = dlg.querySelector(".card");
       if (!card) return;
@@ -1338,6 +1031,7 @@ a.show()
   window.addEventListener("DOMContentLoaded", () => {
     const state = getOrInitState();
 
+    // refs mural
     const garden = document.getElementById("garden");
 
     const composer = document.getElementById("composer");
@@ -1357,44 +1051,85 @@ a.show()
     const viewerMeta = document.getElementById("viewerMeta");
     const viewerEls = { viewer, viewerImg, viewerText, viewerMeta };
 
-    // ===== Rascunho do composer =====
-    if (textEl) {
-      const draft = loadComposerDraft();
-      if (draft && !textEl.value) textEl.value = draft;
+    // =====================================================
+    // TOOLTIP (1s delay) — usa data-tip em qualquer elemento
+    // =====================================================
+    (function initTooltips(){
+      const tip = document.createElement("div");
+      tip.className = "uiTip";
+      tip.setAttribute("role", "tooltip");
+      tip.style.display = "none";
+      document.body.appendChild(tip);
 
-      const saveDraftDebounced = debounce(() => saveComposerDraft(textEl.value), 220);
-      textEl.addEventListener("input", saveDraftDebounced);
-      textEl.addEventListener("change", () => saveComposerDraft(textEl.value));
-    }
+      let t = null;
+      let currentEl = null;
 
-    // Fecha bolhas ao clicar fora
+      const show = (el) => {
+        const text = el?.getAttribute?.("data-tip");
+        if (!text) return;
+        tip.textContent = text;
+        tip.style.display = "block";
+        tip.style.opacity = "1";
+
+        const r = el.getBoundingClientRect();
+        const margin = 10;
+
+        const w = tip.offsetWidth;
+        const h = tip.offsetHeight;
+
+        let left = r.left + (r.width/2) - (w/2);
+        left = clamp(left, margin, window.innerWidth - w - margin);
+
+        let top = r.top - h - 10;
+        if (top < margin) top = r.bottom + 10;
+
+        tip.style.left = `${left}px`;
+        tip.style.top = `${top}px`;
+      };
+
+      const hide = () => {
+        clearTimeout(t);
+        t = null;
+        currentEl = null;
+        tip.style.display = "none";
+      };
+
+      document.addEventListener("pointerenter", (e) => {
+        const el = e.target?.closest?.("[data-tip]");
+        if (!el) return;
+        if (el.matches?.("[disabled]")) return;
+
+        currentEl = el;
+        clearTimeout(t);
+        t = setTimeout(() => {
+          if (currentEl === el) show(el);
+        }, 1000);
+      }, true);
+
+      document.addEventListener("pointerleave", (e) => {
+        const el = e.target?.closest?.("[data-tip]");
+        if (!el) return;
+        hide();
+      }, true);
+
+      window.addEventListener("scroll", hide, true);
+      window.addEventListener("resize", hide);
+    })();
+
+
+
+    // Fecha bolhas ao clicar em qualquer lugar fora
     document.addEventListener("pointerdown", (e) => {
       if (e.target.closest?.(".seed")) return;
-
       closeAllSeedBubbles();
-
-      window.CEU_PREVIEW_SEED_ID = null;
-      window.CEU_PREVIEW_FX = null;
-      window.CEU_HOVER = 0;
-      applyPresetFxToDisplay(state.activePreset, state);
-
-      // Strudel preview off
-      clearPreviewSeedLayer();
     });
 
-    // dblclick no background: remove lock
-    document.addEventListener("dblclick", (e) => {
-      if (e.target.closest?.(".seed")) return;
-      e.preventDefault();
-      e.stopPropagation();
-      closeAllSeedBubbles();
-      clearSeedLock(state);
-    });
-
+    // Desencorajar “download fácil” (não impede 100%)
     document.addEventListener("contextmenu", (e) => {
       if (e.target.closest?.(".viewerImg, .seed, #garden")) e.preventDefault();
     });
 
+    // Viewer fecha clicando fora do card
     viewer?.addEventListener("click", (e) => {
       const box = viewer.querySelector(".viewer");
       if (!box) return;
@@ -1405,199 +1140,18 @@ a.show()
       if (!inside) closeDialogSafe(viewer);
     });
 
+    // Sobre (popup)
     setupAboutPopup();
 
+    // Hydra
     initHydraBackground();
     runActivePreset(state);
 
+    // Mini editor
     const miniApi = setupMiniEditor(state);
 
-    // ===== Overlay de código (Y) =====
-    const codeOverlay = document.getElementById("codeOverlay");
-    let overlayOn = localStorage.getItem("ceu_code_overlay") === "1";
-
-    function getActiveHydraCode() {
-      const id = PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A";
-      return (state.presets[id]?.code || PRESET_DEFAULTS[id]?.code || "").trim();
-    }
-
-    function updateCodeOverlay() {
-      if (!codeOverlay) return;
-      codeOverlay.textContent = getActiveHydraCode();
-    }
-
-    function setOverlay(on) {
-      overlayOn = !!on;
-      localStorage.setItem("ceu_code_overlay", overlayOn ? "1" : "0");
-      if (!codeOverlay) return;
-      codeOverlay.classList.toggle("is-on", overlayOn);
-      if (overlayOn) updateCodeOverlay();
-    }
-
-    window.CEU_updateCodeOverlay = updateCodeOverlay;
-
-    setOverlay(overlayOn);
-
-    window.addEventListener("keydown", (e) => {
-      const tag = (document.activeElement?.tagName || "").toLowerCase();
-      const typing = tag === "textarea" || tag === "input";
-      const isHydraCode = document.activeElement?.id === "hydraCode";
-      if (typing && !isHydraCode) return;
-
-      if (e.key === "y" || e.key === "Y") {
-        e.preventDefault();
-        e.stopPropagation();
-        setOverlay(!overlayOn);
-      }
-    });
-
-    // Ctrl+Enter: rodar preset ativo
-    window.addEventListener("keydown", (e) => {
-      const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
-      const mod = isMac ? e.metaKey : e.ctrlKey;
-
-      if (mod && e.key === "Enter") {
-        e.preventDefault();
-        e.stopPropagation();
-        runActivePreset(state);
-        updateCodeOverlay();
-      }
-    });
-
+    // Preset dock (A/B/C/D)
     setupPresetDock(state, miniApi);
-
-        // ==========================
-    // SOM (Strudel) — criar / on-off / mini editor
-    // ==========================
-    const createSoundBtn = document.getElementById("createSound");
-    const soundBtn = document.getElementById("toggleSound");
-
-    STRUDEL.triangleId = state.activePreset;
-
-    createSoundBtn?.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const ok = await ensureStrudelReady();
-      if (!ok) {
-        alert("Strudel não carregou. Confere o <script> do @strudel/web no index.html.");
-        return;
-      }
-      // feedback simples
-      createSoundBtn.textContent = "Som criado";
-      createSoundBtn.disabled = true;
-    });
-
-    soundBtn?.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      // exige que "Criar som" tenha sido clicado (gesto do usuário)
-      if (!STRUDEL.ready) {
-        alert("Primeiro clique em “Criar som” para destravar o áudio do navegador.");
-        return;
-      }
-
-      const turningOn = !STRUDEL.enabled;
-      await setSoundEnabled(turningOn);
-
-      localStorage.setItem("ceu_sound_enabled", turningOn ? "1" : "0");
-      soundBtn.textContent = turningOn ? "Som: on" : "Som: off";
-      soundBtn.setAttribute("aria-pressed", turningOn ? "true" : "false");
-    });
-
-    // mini editor Strudel
-    const strudelPanel = document.getElementById("strudelMini");
-    const openStrudelMini = document.getElementById("openStrudelMini");
-    const closeStrudelMini = document.getElementById("closeStrudelMini");
-    const strudelCode = document.getElementById("strudelCode");
-    const runStrudel = document.getElementById("runStrudel");
-    const stopStrudel = document.getElementById("stopStrudel");
-
-    // default: mostra o "mix engine" (você pode editar)
-    if (strudelCode && !strudelCode.value) {
-      strudelCode.value =
-`setcps(1)
-note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85).play()
-// stop: hush()`;
-    }
-
-    function openStrudelPanel(ev){
-      ev?.preventDefault?.(); ev?.stopPropagation?.();
-      if (!strudelPanel) return;
-      strudelPanel.hidden = !strudelPanel.hidden;
-    }
-    openStrudelMini?.addEventListener("click", openStrudelPanel);
-    closeStrudelMini?.addEventListener("click", (e)=>{ e.preventDefault(); e.stopPropagation(); if(strudelPanel) strudelPanel.hidden = true; });
-
-    function evalStrudel(code){
-      // Strudel/web define funções globais (note, hush, setcps...)
-      // Aqui rodamos como JS mesmo.
-      (0, eval)(String(code || ""));
-    }
-
-    runStrudel?.addEventListener("click", async (e) => {
-      e.preventDefault(); e.stopPropagation();
-      if (!STRUDEL.ready) {
-        alert("Clique em “Criar som” antes de rodar Strudel.");
-        return;
-      }
-      try { evalStrudel(strudelCode?.value || ""); } catch(err){ console.error(err); alert("Erro no Strudel. Veja o console."); }
-    });
-
-    stopStrudel?.addEventListener("click", (e) => {
-      e.preventDefault(); e.stopPropagation();
-      try { window.hush?.(); } catch {}
-    });
-
-    // atalho: Alt+Enter roda o Strudel editor (Ctrl+Enter já é Hydra)
-    window.addEventListener("keydown", async (e) => {
-      const tag = (document.activeElement?.tagName || "").toLowerCase();
-      const typing = tag === "textarea" || tag === "input";
-      const isStrudelCode = document.activeElement?.id === "strudelCode";
-
-      if (typing && !isStrudelCode) return;
-
-      if (e.altKey && e.key === "Enter") {
-        e.preventDefault(); e.stopPropagation();
-        if (!STRUDEL.ready) {
-          alert("Clique em “Criar som” antes de rodar Strudel.");
-          return;
-        }
-        try { evalStrudel(strudelCode?.value || ""); } catch(err){ console.error(err); alert("Erro no Strudel. Veja o console."); }
-      }
-    });
-
-
-    // ===== Som (Strudel) =====
-    const soundBtn = document.getElementById("toggleSound");
-    const savedSound = localStorage.getItem("ceu_sound_enabled") === "1";
-
-    STRUDEL.triangleId = state.activePreset;
-
-    if (savedSound && soundBtn) {
-      // não auto-start; UI fica off até gesto
-      soundBtn.textContent = "Som: off";
-      soundBtn.setAttribute("aria-pressed", "false");
-    }
-
-    soundBtn?.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const turningOn = !STRUDEL.enabled;
-
-      setSoundEnabled(turningOn).then(() => {
-        localStorage.setItem("ceu_sound_enabled", turningOn ? "1" : "0");
-        soundBtn.textContent = turningOn ? "Som: on" : "Som: off";
-        soundBtn.setAttribute("aria-pressed", turningOn ? "true" : "false");
-
-        // se ligou, toca base do triângulo atual
-        if (turningOn) {
-          playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-        }
-      });
-    });
 
     // abrir composer
     openComposer?.addEventListener("click", () => {
@@ -1608,6 +1162,7 @@ note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85).play()
     closeComposer?.addEventListener("click", () => closeDialogSafe(composer));
     closeViewer?.addEventListener("click", () => closeDialogSafe(viewer));
 
+    // fechar composer clicando fora
     composer?.addEventListener("click", (e) => {
       const formEl = composer.querySelector("form");
       if (!formEl) return;
@@ -1618,8 +1173,8 @@ note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85).play()
       if (!inside) closeDialogSafe(composer);
     });
 
-    // submit mural (SEM async/await)
-    form?.addEventListener("submit", (e) => {
+    // submit mural
+    form?.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       const text = (textEl?.value || "").trim();
@@ -1639,37 +1194,33 @@ note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85).play()
         return;
       }
 
-      if (sendBtn) sendBtn.disabled = true;
-      setStatus(statusEl, "Enviando…");
+      try {
+        if (sendBtn) sendBtn.disabled = true;
+        setStatus(statusEl, "Enviando…");
 
-      uploadMediaIfAny(file)
-        .then((mediaUrl) => {
-          const mediaType = file?.type || null;
-          return insertPost(text, mediaUrl, mediaType);
-        })
-        .then(() => {
-          clearComposerDraft();
+        const mediaUrl = await uploadMediaIfAny(file);
+        const mediaType = file?.type || null;
 
-          mutateFxOnPlant(state);
+        await insertPost(text, mediaUrl, mediaType);
 
-          if (textEl) textEl.value = "";
-          if (mediaEl) mediaEl.value = "";
+        // plantar => muda FX do preset ativo
+        mutateFxOnPlant(state);
 
-          setStatus(statusEl, "Recebido ✶ Sua marca já está no céu.");
+        if (textEl) textEl.value = "";
+        if (mediaEl) mediaEl.value = "";
 
-          return renderGarden(garden, viewerEls, state);
-        })
-        .then(() => {
-          setTimeout(() => closeDialogSafe(composer), 450);
-        })
-        .catch((err) => {
-          console.error(err);
-          setStatus(statusEl, "Não consegui enviar agora. Tente novamente.");
-        })
-        .finally(() => {
-          if (sendBtn) sendBtn.disabled = false;
-        });
+        setStatus(statusEl, "Recebido ✶ Sua marca já está no céu.");
+
+        await renderGarden(garden, viewerEls, state);
+        setTimeout(() => closeDialogSafe(composer), 450);
+      } catch (err) {
+        console.error(err);
+        setStatus(statusEl, "Não consegui enviar agora. Tente novamente.");
+      } finally {
+        if (sendBtn) sendBtn.disabled = false;
+      }
     });
+
     // render inicial
     renderGarden(garden, viewerEls, state);
   });
