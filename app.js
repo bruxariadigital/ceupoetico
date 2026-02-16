@@ -33,7 +33,28 @@
       console.warn("Não consegui salvar (localStorage cheio?)", e);
     }
   }
+  const DRAFT_KEY = "CEUPOETICO_COMPOSER_DRAFT_V1";
 
+function draftStorageKey() {
+  // localStorage já é “por dispositivo/navegador”; userKey evita colisão dentro do mesmo browser
+  return `${DRAFT_KEY}::${getUserKey()}`;
+}
+
+function loadComposerDraft() {
+  try { return localStorage.getItem(draftStorageKey()) || ""; } catch { return ""; }
+}
+
+function saveComposerDraft(text) {
+  try {
+    const v = (text ?? "").toString();
+    if (!v.trim()) localStorage.removeItem(draftStorageKey());
+    else localStorage.setItem(draftStorageKey(), v);
+  } catch {}
+}
+
+function clearComposerDraft() {
+  try { localStorage.removeItem(draftStorageKey()); } catch {}
+}
   // =====================================================
   // PRESETS (A/B/C/D) + buffers
   // Reservamos o3 como DISPLAY final (pós-processamento)
@@ -250,7 +271,12 @@ a.show()
   let hydraInstance = null;
 
   window.CEU_HOVER = 0;
-  window.CEU_HOVER_FX = { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
+  window.CEU_SEED_FX = null;
+  window.CEU_LOCKED_SEED_ID = null;
+  window.CEU_LOCKED_FX = null;
+  window.CEU_PREVIEW_SEED_ID = null;
+  window.CEU_PREVIEW_FX = null;
+
 
   function fitHydraCanvasToScreen() {
     const canvas = document.getElementById("hydra-canvas");
@@ -287,43 +313,286 @@ a.show()
     window.addEventListener("orientationchange", () => setTimeout(fitHydraCanvasToScreen, 60));
   }
 
-  function hushIfPossible() {
-    try { if (typeof window.hush === "function") window.hush(); } catch {}
+  // =====================================================
+  // STRUDEL (áudio) — independente do Hydra
+  // - clique no triângulo = melodia base diferente
+  // - hover na bolha = prévia de camada (não fixa)
+  // - clique na bolha = fixa camada (som + FX)
+  // - "Som: on/off" com fade curto (sem corte seco)
+  // =====================================================
+  const STRUDEL = {
+    ready: false,
+    enabled: false,
+    triangleId: "A",
+    lockedSeedId: null,
+    previewSeedId: null,
+    basePattern: null,
+    overlayPattern: null,
+    overlayPreview: null,
+  };
+
+  function strudelAvailable() {
+    return !!window.CEU_STRUDEL && typeof window.CEU_STRUDEL.init === "function";
+  }
+
+  async function ensureStrudelReady() {
+    if (STRUDEL.ready) return true;
+    if (!strudelAvailable()) return false;
+    try {
+      await window.CEU_STRUDEL.init();
+      STRUDEL.ready = true;
+      return true;
+    } catch (e) {
+      console.warn("Strudel init falhou:", e);
+      return false;
+    }
+  }
+
+  function hash01(str) {
+    // 0..1 determinístico
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return ((h >>> 0) % 10000) / 10000;
+  }
+
+  function buildTrianglePattern(triId) {
+    const S = window.CEU_STRUDEL;
+    // melodias simples (padrões curtos), com reverb leve para "colar" no ambiente
+    if (triId === "A") return S.note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85);
+    if (triId === "B") return S.note("<d4 f4 a4 c5>(3,8)").s("saw").dec(.22).room(.38).gain(.78);
+    if (triId === "C") return S.note("<e4 g4 b4 d5>(3,8)").s("gm_lead_1_square").dec(.20).room(.32).gain(.80);
+    return S.note("<a3 c4 e4 g4>(3,8)").s("gm_electric_piano_1").dec(.24).room(.36).gain(.75);
+  }
+
+  function buildSeedLayer(seedId, mode) {
+    const S = window.CEU_STRUDEL;
+    const r = hash01(seedId);
+    const scale = r < 0.33 ? "C:minor" : (r < 0.66 ? "D:minor" : "A:minor");
+    const inst = r < 0.25 ? "hh" : (r < 0.5 ? "gm_pad_1_new_age" : (r < 0.75 ? "gm_bass_2_finger" : "bd"));
+    const dense = r < 0.5 ? 8 : 16;
+    const g = mode === "preview" ? 0.55 : 0.70;
+    const rm = mode === "preview" ? 0.55 : 0.70; // mais cauda no lock
+
+    // camada: ou percussão curta ou notas tonais
+    if (inst === "hh" || inst === "bd") {
+      return S.s(`${inst}*${dense}`)
+        .gain(g)
+        .room(rm);
+    }
+
+    return S.n("<0 2 4 7>*4")
+      .scale(scale)
+      .s(inst)
+      .dec(.18)
+      .gain(g)
+      .room(rm);
+  }
+
+  function stopStrudelAll() {
+    try { if (window.CEU_STRUDEL?.hush) window.CEU_STRUDEL.hush(); } catch {}
+    STRUDEL.basePattern = null;
+    STRUDEL.overlayPattern = null;
+    STRUDEL.overlayPreview = null;
+  }
+
+  function playStrudelMix({ triId, lockedSeedId }) {
+    if (!STRUDEL.enabled) return;
+    if (!window.CEU_STRUDEL) return;
+
+    // rebuild: hush + play
+    stopStrudelAll();
+    STRUDEL.triangleId = triId;
+    STRUDEL.lockedSeedId = lockedSeedId || null;
+
+    const base = buildTrianglePattern(triId);
+    STRUDEL.basePattern = base;
+    base.play();
+
+    if (STRUDEL.lockedSeedId) {
+      const layer = buildSeedLayer(STRUDEL.lockedSeedId, "lock");
+      STRUDEL.overlayPattern = layer;
+      layer.play();
+    }
+  }
+
+  function previewSeedLayer(seedId) {
+    if (!STRUDEL.enabled) return;
+    if (!window.CEU_STRUDEL) return;
+    if (seedId === STRUDEL.lockedSeedId) return;
+    if (seedId === STRUDEL.previewSeedId) return;
+
+    try {
+      // prévia: toca uma camada e corta ao sair
+      if (STRUDEL.overlayPreview) {
+        // substitui sem acumular
+        window.CEU_STRUDEL.hush();
+        // reconstroi base + lock, depois preview
+        const base = buildTrianglePattern(STRUDEL.triangleId);
+        base.play();
+        if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").play();
+      }
+    } catch {}
+
+    STRUDEL.previewSeedId = seedId;
+    STRUDEL.overlayPreview = buildSeedLayer(seedId, "preview");
+    STRUDEL.overlayPreview.play();
+  }
+
+  function clearPreviewSeedLayer() {
+    if (!STRUDEL.enabled) return;
+    if (!STRUDEL.previewSeedId) return;
+    STRUDEL.previewSeedId = null;
+
+    // volta para base + lock
+    playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
+  }
+
+  async function setSoundEnabled(on) {
+    const ok = await ensureStrudelReady();
+    if (!ok) return;
+
+    const FADE_MS = 120;
+    if (on) {
+      STRUDEL.enabled = true;
+      // fade in: entra baixinho e re-sobe rápido
+      stopStrudelAll();
+      const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
+      base.play();
+      if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001).play();
+      setTimeout(() => {
+        playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
+      }, FADE_MS);
+    } else {
+      // fade out: baixa gain, depois hush
+      try {
+        const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
+        base.play();
+        if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001).play();
+      } catch {}
+      setTimeout(() => {
+        stopStrudelAll();
+        STRUDEL.enabled = false;
+      }, FADE_MS);
+    }
   }
 
   function safeEvalHydra(code) {
     (0, eval)(code);
   }
 
-  function applyPresetFxToDisplay(presetId, state) {
-    const meta = PRESET_DEFAULTS[presetId] || PRESET_DEFAULTS.A;
-    const srcName = meta.renderBuf || "o0";
-    const srcBuf = globalThis[srcName] || globalThis.o0;
-    const outBuf = globalThis[DISPLAY_BUF] || globalThis.o3;
+  // =====================================================
+  // Hydra FX aleatório por bolha (hover/click)
+  //   - hover aplica FX randômico
+  //   - click trava FX até outra bolha ou clique fora
+  // =====================================================
+  function randomFxFromSeed(seedKey) {
+    const s = String(seedKey);
+    const r1 = hash01(s + "::fx1");
+    const r2 = hash01(s + "::fx2");
+    const r3 = hash01(s + "::fx3");
 
-    const fx = state.presets[presetId]?.fx || defaultFx();
+    const pick = Math.floor(r1 * 16); // mais variedade
+    const a = 0.18 + r2 * 0.82;       // intensidade
+    const b = 0.65 + r3 * 1.75;       // escala/frequência
+    const c = r1;
+    const d = r2;
 
-    // hover “aleatório por bolha”: um boost (h) + deltas por parâmetro
-    const h = window.CEU_HOVER || 0;
-    const hf = window.CEU_HOVER_FX || { contrast: 0, saturate: 0, brightness: 0, colorama: 0 };
+    return { pick, a, b, c, d };
+  }
+
+  function applyRandomSeedFx(node, fxObj) {
+    if (!fxObj) return node;
+
+    const p = (fxObj.pick ?? 0) % 16;
+    const a = fxObj.a ?? 0.6;
+    const b = fxObj.b ?? 1.0;
+    const c = fxObj.c ?? 0.5;
+    const d = fxObj.d ?? 0.5;
+
+    // moduladores seguros (evitam recursão GLSL)
+    const mOsc = osc(6 + b * 10, 0.02 + a * 0.12, 0.8 + c * 1.2);
+    const mNoise = noise(1.2 + b * 2.5, 0.15 + a * 0.35);
 
     try {
-      src(srcBuf)
-        .contrast(() => fx.contrast + (h * 0.12) + (hf.contrast || 0))
-        .saturate(() => fx.saturate + (h * 0.18) + (hf.saturate || 0))
-        .brightness(() => fx.brightness + (h * 0.05) + (hf.brightness || 0))
-        .colorama(() => fx.colorama + (h * 0.12) + (hf.colorama || 0))
-        .out(outBuf);
+      if (p === 0) return node.invert(a * 0.85);
+      if (p === 1) return node.posterize(2 + Math.floor(b * 6), 0.55 + d * 0.35);
+      if (p === 2) return node.kaleid(2 + Math.floor(b * 10)).rotate(() => a * 0.45);
+      if (p === 3) return node.pixelate(10 + Math.floor(b * 40), 8 + Math.floor(a * 26));
+      if (p === 4) return node.thresh(0.25 + a * 0.35, 0.06 + d * 0.2);
+      if (p === 5) return node.luma(() => 0.22 + a * 0.55, 0.12 + d * 0.25);
+      if (p === 6) return node.color(0.6 + a * 0.8, 0.55 + d * 0.9, 0.8 + c * 0.7).saturate(0.9 + a * 1.4);
+      if (p === 7) return node.hue(() => (c - 0.5) * 1.2).contrast(1.0 + a * 0.5);
 
-      if (typeof window.render === "function") window.render(outBuf);
-    } catch (e) {
-      console.warn("FX falhou (ignorado):", e);
+      if (p === 8) return node.scrollX(() => (a - 0.5) * 0.06, () => (d - 0.5) * 0.03)
+                         .scrollY(() => (d - 0.5) * 0.06, () => (a - 0.5) * 0.03);
+
+      if (p === 9) return node.repeat(1 + Math.floor(b * 3), 1 + Math.floor(d * 3), 0.0, 0.0).rotate(() => a * 0.15);
+
+      if (p === 10) return node.modulateRotate(mOsc, () => a * 0.65).contrast(1.0 + a * 0.35);
+      if (p === 11) return node.modulateScale(mNoise, () => 0.8 + a * 1.0, () => a * 0.22);
+      if (p === 12) return node.modulate(mOsc, () => a * 0.25).brightness(() => 0.02 + d * 0.08);
+      if (p === 13) return node.modulateKaleid(mOsc, 2 + Math.floor(b * 8));
+      if (p === 14) return node.add(mNoise, 0.12 + a * 0.22).contrast(1.05 + d * 0.35);
+      return node.diff(mOsc, 0.18 + a * 0.28).saturate(1.0 + a * 0.9);
+    } catch {
+      return node;
     }
   }
 
+function applyPresetFxToDisplay(presetId, state) {
+  const meta = PRESET_DEFAULTS[presetId] || PRESET_DEFAULTS.A;
+  const srcName = meta.renderBuf || "o0";
+  const srcBuf = globalThis[srcName] || globalThis.o0;
+  const outBuf = globalThis[DISPLAY_BUF] || globalThis.o3;
+
+  const fx = state.presets[presetId]?.fx || defaultFx();
+
+  const h = window.CEU_HOVER || 0;
+
+  const lockedFx = window.CEU_LOCKED_FX || null;
+  const previewFx = window.CEU_PREVIEW_FX || null;
+
+  // Intensidades (mistura): sensação de camada preservada no lock
+  const LOCK_MIX = 0.55;     // camada persistente (lock)
+  const PREVIEW_MIX = 0.40;  // camada temporária (hover)
+
+  try {
+    // base "pura"
+    let base = src(srcBuf);
+
+    // versão afetada (partimos sempre do mesmo base para não "trocar o mundo")
+    let affected = src(srcBuf);
+
+    // aplica FX no "affected"
+    affected = applyRandomSeedFx(affected, lockedFx);
+    affected = applyRandomSeedFx(affected, previewFx);
+
+    // mistura como camada (em vez de substituir)
+    let chain = base;
+
+    if (lockedFx) chain = chain.blend(affected, LOCK_MIX);
+    if (previewFx) chain = chain.blend(affected, PREVIEW_MIX);
+
+    chain
+      .contrast(() => fx.contrast + h * 0.14)
+      .saturate(() => fx.saturate + h * 0.22)
+      .brightness(() => fx.brightness + h * 0.05)
+      .colorama(() => fx.colorama + h * 0.16)
+      .out(outBuf);
+
+    if (typeof window.render === "function") window.render(outBuf);
+  } catch (e) {
+    console.warn("FX falhou (ignorado):", e);
+  }
+}
+
+
   function runActivePreset(state) {
-    initHydraBackground();
-    hushIfPossible();
+  initHydraBackground();
+  // sem hush(): rodar o preset ativo já substitui o output pelos .out(...)
 
     const presetId = PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A";
     const code = (state.presets[presetId]?.code || PRESET_DEFAULTS[presetId]?.code || "").trim();
@@ -453,6 +722,30 @@ a.show()
   }
 
   // =====================================================
+  // LOCK (bolha selecionada) + UI
+  // =====================================================
+  let CEU_LOCKED_SEED_EL = null;
+
+  function markLockedSeed(seedEl) {
+    if (CEU_LOCKED_SEED_EL && CEU_LOCKED_SEED_EL !== seedEl) {
+      CEU_LOCKED_SEED_EL.classList.remove("is-locked");
+    }
+    CEU_LOCKED_SEED_EL = seedEl || null;
+    if (seedEl) seedEl.classList.add("is-locked");
+  }
+
+  function clearSeedLock(state) {
+    window.CEU_LOCKED_SEED_ID = null;
+    window.CEU_LOCKED_FX = null;
+    window.CEU_PREVIEW_SEED_ID = null;
+    window.CEU_PREVIEW_FX = null;
+    window.CEU_SEED_FX = null;
+    window.CEU_HOVER = 0;
+    markLockedSeed(null);
+    applyPresetFxToDisplay(state.activePreset, state);
+  }
+
+// =====================================================
   // VIEWER + GARDEN
   // =====================================================
   function pickGlyph(id) {
@@ -464,19 +757,6 @@ a.show()
     }
     return options[(h >>> 0) % options.length];
   }
-
-  function randomHoverFx() {
-    // deltas pequenos e elegantes (sem estourar saturação/colorama)
-    // cada bolha/hover “vira” um mini-preset temporário
-    return {
-      contrast:   (Math.random() * 0.20 - 0.08),   // -0.08 .. +0.12
-      saturate:   (Math.random() * 0.30 - 0.10),   // -0.10 .. +0.20
-      brightness: (Math.random() * 0.10 - 0.05),   // -0.05 .. +0.05
-      colorama:   (Math.random() * 0.18 - 0.06)    // -0.06 .. +0.12
-    };
-  }
-
-
 
   function openViewer(viewerEls, post) {
     const { viewer, viewerImg, viewerText, viewerMeta } = viewerEls;
@@ -591,9 +871,6 @@ a.show()
     el.className = "seed";
     el.type = "button";
 
-    // tooltip: descreve a função da bolha
-    el.setAttribute("data-tip", "Marca no céu: passe o mouse para ver o efeito; clique para abrir.");
-
     const x = 6 + Math.random() * 88;
     const y = 12 + Math.random() * 76;
     el.style.left = x.toFixed(2) + "%";
@@ -638,106 +915,88 @@ a.show()
       bubble.appendChild(bText);
     }
 
-    const hint = document.createElement("div");
+    const viewBtn = document.createElement("button");
+    viewBtn.type = "button";
+    viewBtn.className = "btn btn--tiny";
+    viewBtn.textContent = "ver";
+    viewBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openViewer(viewerEls, post);
+    });
+    bubble.appendChild(viewBtn);
 
     el.appendChild(bubble);
 
     // drag (desktop + mobile)
     enableSeedDrag(el, garden);
 
-    // hover (desktop): abre bolha + preview FX (mesmo com lock)
-if (isHoverDesktop()) {
-  let closeT = null;
+    // hover (somente desktop): abre bolha + preview do efeito
+       // hover (somente desktop): abre bolha + preview do efeito
+    if (isHoverDesktop()) {
+      let closeT = null;
 
-  el.addEventListener("pointerenter", () => {
-    clearTimeout(closeT);
-    openSeedBubble(el);
+      el.addEventListener("pointerenter", () => {
+        clearTimeout(closeT);
+        openSeedBubble(el);
 
-    const fx = randFx(post.id);
-    CEU_PREVIEW_SEED_ID = post.id;
-    CEU_PREVIEW_FX = fx;
-    window.CEU_SEED_FX = fx;
+        const fx = randomFxFromSeed(post.id + "::hover::" + Date.now() + "::" + Math.random());
+        window.CEU_PREVIEW_SEED_ID = post.id;
+        window.CEU_PREVIEW_FX = fx;
 
-    window.CEU_HOVER = 0.28 + Math.random() * 0.45;
-    applyPresetFxToDisplay(state.activePreset, state);
-  });
+        window.CEU_HOVER = 0.22 + Math.random() * 0.35;
+        applyPresetFxToDisplay(state.activePreset, state);
+      });
 
-  el.addEventListener("pointerleave", () => {
-    window.CEU_HOVER = 0;
-    CEU_PREVIEW_SEED_ID = null;
-    CEU_PREVIEW_FX = null;
+      el.addEventListener("pointerleave", () => {
+        window.CEU_PREVIEW_SEED_ID = null;
+        window.CEU_PREVIEW_FX = null;
 
-    window.CEU_SEED_FX = CEU_LOCKED_FX || null;
-    applyPresetFxToDisplay(state.activePreset, state);
+        window.CEU_HOVER = 0;
+        applyPresetFxToDisplay(state.activePreset, state);
 
-    closeT = setTimeout(() => {
-      el.classList.remove("is-open");
-      el.style.zIndex = "";
-    }, 180);
-  });
-} else {
-  // touch: tap 1x aplica FX + abre bolha
-  //        tap longo (press&hold) faz lock
-  let pressT = null;
+        closeT = setTimeout(() => {
+          el.classList.remove("is-open");
+          el.style.zIndex = "";
+        }, 180);
+      });
+    } else {
+      // MOBILE:
+      // - sem "tap longo" (evita abrir viewer ao tentar arrastar)
+      // - viewer abre apenas pelo botão "ver" dentro da bolha
+      el.addEventListener("contextmenu", (e) => e.preventDefault());
+    }
 
-  const clearPress = () => {
-    if (pressT) clearTimeout(pressT);
-    pressT = null;
-  };
 
-  el.addEventListener("pointerdown", (e) => {
-    if (isHoverDesktop()) return;
-    if (e.target?.closest?.(".bubble")) return;
-    if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
-
-    el._didLongPress = false;
-
-    clearPress();
-    pressT = setTimeout(() => {
-      el._didLongPress = true;
-      openSeedBubble(el);
-
-      const fx = (CEU_PREVIEW_SEED_ID === post.id && window.CEU_SEED_FX) ? window.CEU_SEED_FX : randFx(post.id);
-
-      CEU_LOCKED_SEED_ID = post.id;
-      CEU_LOCKED_FX = fx;
-      STRUDEL.lockedSeedId = post.id;
-      markLockedSeed(el);
-
-      window.CEU_SEED_FX = fx;
-      window.CEU_HOVER = 0;
-      applyPresetFxToDisplay(state.activePreset, state);
-    }, 420);
-  });
-
-  el.addEventListener("pointerup", clearPress);
-  el.addEventListener("pointercancel", clearPress);
-}
-
-// click/tap:
-
-    // - se arrastou agora: ignora
-    // - mobile: 1º abre bolha, 2º abre viewer
-    // - desktop: click abre viewer direto (bolha já abre no hover)
+    // - fixa (som + FX) nesta bolha
     el.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
 
       if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
 
-      if (isHoverDesktop()) {
-        openViewer(viewerEls, post);
-        return;
-      }
+    
 
-      const isOpen = el.classList.contains("is-open");
-      if (!isOpen) {
-        openSeedBubble(el);
-        return;
-      }
+      openSeedBubble(el);
 
-      el.classList.remove("is-open");
-      el.style.zIndex = "";
+      const fx =
+        (window.CEU_PREVIEW_SEED_ID === post.id && window.CEU_PREVIEW_FX)
+          ? window.CEU_PREVIEW_FX
+          : randomFxFromSeed(post.id + "::lock::" + Date.now() + "::" + Math.random());
+
+      window.CEU_LOCKED_SEED_ID = post.id;
+      window.CEU_LOCKED_FX = fx;
+
+      markLockedSeed(el);
+
+      window.CEU_HOVER = 0;
+      applyPresetFxToDisplay(state.activePreset, state);
+    });
+
+    // DESKTOP: 2 cliques abre viewer (sem mexer no lock)
+    el.addEventListener("dblclick", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
       openViewer(viewerEls, post);
     });
 
@@ -992,18 +1251,12 @@ if (isHoverDesktop()) {
         if (!PRESET_IDS.includes(id)) return;
 
         state.activePreset = id;
-saveState(state);
+        saveState(state);
 
-// ao trocar de triângulo: volta para a base do triângulo selecionado
-CEU_LOCKED_SEED_ID = null;
-CEU_LOCKED_FX = null;
-CEU_PREVIEW_SEED_ID = null;
-CEU_PREVIEW_FX = null;
-STRUDEL.lockedSeedId = null;
-markLockedSeed(null);
-window.CEU_SEED_FX = null;
-window.CEU_HOVER = 0;
-
+        // ao mudar de triângulo: volta para a base do triângulo selecionado
+        // e remove lock/preview do Hydra
+        closeAllSeedBubbles();
+        clearSeedLock(state);
 
         miniApi?.syncEditorFromState?.();
         runActivePreset(state);
@@ -1051,10 +1304,7 @@ window.CEU_HOVER = 0;
   // START
   // =====================================================
   window.addEventListener("DOMContentLoaded", () => {
-        const state = getOrInitState();
-
-    // remove tooltips nativos (title)
-    document.querySelectorAll('[title]').forEach((el) => el.removeAttribute('title'));
+    const state = getOrInitState();
 
     // refs mural
     const garden = document.getElementById("garden");
@@ -1076,77 +1326,40 @@ window.CEU_HOVER = 0;
     const viewerMeta = document.getElementById("viewerMeta");
     const viewerEls = { viewer, viewerImg, viewerText, viewerMeta };
 
-    // =====================================================
-    // TOOLTIP (1s delay) — usa data-tip em qualquer elemento
-    // =====================================================
-    (function initTooltips(){
-      const tip = document.createElement("div");
-      tip.className = "uiTip";
-      tip.setAttribute("role", "tooltip");
-      tip.style.display = "none";
-      document.body.appendChild(tip);
+    // ==============================
+// RASCUNHO: Plantar uma semente
+// Regra: persiste até Enviar, apagar pelo usuário ou Reset códigos
+// ==============================
+if (textEl) {
+  const draft = loadComposerDraft();
+  if (draft && !textEl.value) textEl.value = draft;
 
-      let t = null;
-      let currentEl = null;
+  const saveDraftDebounced = debounce(() => saveComposerDraft(textEl.value), 220);
+  textEl.addEventListener("input", saveDraftDebounced);
 
-      const show = (el) => {
-        const text = el?.getAttribute?.("data-tip");
-        if (!text) return;
-        tip.textContent = text;
-        tip.style.display = "block";
-        tip.style.opacity = "1";
-
-        const r = el.getBoundingClientRect();
-        const margin = 10;
-
-        const w = tip.offsetWidth;
-        const h = tip.offsetHeight;
-
-        let left = r.left + (r.width/2) - (w/2);
-        left = clamp(left, margin, window.innerWidth - w - margin);
-
-        let top = r.top - h - 10;
-        if (top < margin) top = r.bottom + 10;
-
-        tip.style.left = `${left}px`;
-        tip.style.top = `${top}px`;
-      };
-
-      const hide = () => {
-        clearTimeout(t);
-        t = null;
-        currentEl = null;
-        tip.style.display = "none";
-      };
-
-      document.addEventListener("pointerenter", (e) => {
-        const el = e.target?.closest?.("[data-tip]");
-        if (!el) return;
-        if (el.matches?.("[disabled]")) return;
-
-        currentEl = el;
-        clearTimeout(t);
-        t = setTimeout(() => {
-          if (currentEl === el) show(el);
-        }, 1000);
-      }, true);
-
-      document.addEventListener("pointerleave", (e) => {
-        const el = e.target?.closest?.("[data-tip]");
-        if (!el) return;
-        hide();
-      }, true);
-
-      window.addEventListener("scroll", hide, true);
-      window.addEventListener("resize", hide);
-    })();
-
-
+  // se o usuário apagar tudo, remove do storage
+  textEl.addEventListener("change", () => saveComposerDraft(textEl.value));
+}
 
     // Fecha bolhas ao clicar em qualquer lugar fora
     document.addEventListener("pointerdown", (e) => {
+      // clique fora: fecha bolhas abertas (mas mantém o lock do Hydra)
       if (e.target.closest?.(".seed")) return;
       closeAllSeedBubbles();
+
+      window.CEU_PREVIEW_SEED_ID = null;
+      window.CEU_PREVIEW_FX = null;
+      window.CEU_HOVER = 0;
+      applyPresetFxToDisplay(state.activePreset, state);
+    });
+
+    // dblclick no background: remove lock + volta para o código base do triângulo (mini editor)
+    document.addEventListener("dblclick", (e) => {
+      if (e.target.closest?.(".seed")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeAllSeedBubbles();
+      clearSeedLock(state);
     });
 
     // Desencorajar “download fácil” (não impede 100%)
@@ -1177,6 +1390,27 @@ window.CEU_HOVER = 0;
 
     // Preset dock (A/B/C/D)
     setupPresetDock(state, miniApi);
+
+    // Som (Strudel)
+    const soundBtn = document.getElementById("toggleSound");
+    const savedSound = localStorage.getItem("ceu_sound_enabled") === "1";
+    STRUDEL.triangleId = state.activePreset;
+    if (savedSound && soundBtn) {
+      // só liga se houver gesto do usuário; atualiza UI, mas não inicia automaticamente
+      soundBtn.textContent = "Som: off";
+      soundBtn.setAttribute("aria-pressed", "false");
+    }
+
+    soundBtn?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const turningOn = !STRUDEL.enabled;
+      await setSoundEnabled(turningOn);
+      localStorage.setItem("ceu_sound_enabled", turningOn ? "1" : "0");
+      soundBtn.textContent = turningOn ? "Som: on" : "Som: off";
+      soundBtn.setAttribute("aria-pressed", turningOn ? "true" : "false");
+    });
 
     // abrir composer
     openComposer?.addEventListener("click", () => {
@@ -1227,6 +1461,7 @@ window.CEU_HOVER = 0;
         const mediaType = file?.type || null;
 
         await insertPost(text, mediaUrl, mediaType);
+        clearComposerDraft();
 
         // plantar => muda FX do preset ativo
         mutateFxOnPlant(state);
