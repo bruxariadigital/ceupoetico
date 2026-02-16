@@ -1387,6 +1387,25 @@ if (textEl) {
 
     // Mini editor
     const miniApi = setupMiniEditor(state);
+    
+    // Ctrl+Enter: rodar o preset ativo (mesmo com o mini editor aberto)
+window.addEventListener("keydown", (e) => {
+  const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+  const mod = isMac ? e.metaKey : e.ctrlKey;
+
+  if (mod && e.key === "Enter") {
+    // evita conflito quando estiver em inputs "normais"
+    // MAS: deixa funcionar dentro do textarea do hydraCode (é o caso que a gente quer)
+    e.preventDefault();
+    e.stopPropagation();
+
+    runActivePreset(state);
+
+    // se existir o overlay de código (ver item 4), atualiza também
+    if (typeof window.CEU_updateCodeOverlay === "function") window.CEU_updateCodeOverlay();
+  }
+});
+
 
     // Preset dock (A/B/C/D)
     setupPresetDock(state, miniApi);
