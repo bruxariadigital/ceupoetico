@@ -33,28 +33,29 @@
       console.warn("Não consegui salvar (localStorage cheio?)", e);
     }
   }
+
   const DRAFT_KEY = "CEUPOETICO_COMPOSER_DRAFT_V1";
 
-function draftStorageKey() {
-  // localStorage já é “por dispositivo/navegador”; userKey evita colisão dentro do mesmo browser
-  return `${DRAFT_KEY}::${getUserKey()}`;
-}
+  function draftStorageKey() {
+    return `${DRAFT_KEY}::${getUserKey()}`;
+  }
 
-function loadComposerDraft() {
-  try { return localStorage.getItem(draftStorageKey()) || ""; } catch { return ""; }
-}
+  function loadComposerDraft() {
+    try { return localStorage.getItem(draftStorageKey()) || ""; } catch { return ""; }
+  }
 
-function saveComposerDraft(text) {
-  try {
-    const v = (text ?? "").toString();
-    if (!v.trim()) localStorage.removeItem(draftStorageKey());
-    else localStorage.setItem(draftStorageKey(), v);
-  } catch {}
-}
+  function saveComposerDraft(text) {
+    try {
+      const v = (text ?? "").toString();
+      if (!v.trim()) localStorage.removeItem(draftStorageKey());
+      else localStorage.setItem(draftStorageKey(), v);
+    } catch {}
+  }
 
-function clearComposerDraft() {
-  try { localStorage.removeItem(draftStorageKey()); } catch {}
-}
+  function clearComposerDraft() {
+    try { localStorage.removeItem(draftStorageKey()); } catch {}
+  }
+
   // =====================================================
   // PRESETS (A/B/C/D) + buffers
   // Reservamos o3 como DISPLAY final (pós-processamento)
@@ -63,7 +64,6 @@ function clearComposerDraft() {
   const PRESET_IDS = ["A", "B", "C", "D"];
 
   const PRESET_DEFAULTS = {
-    // A: (novo) — PARA VOCÊ, O QUE É SER POTIGUAR?
     A: {
       name: "A",
       renderBuf: "o0",
@@ -82,7 +82,6 @@ a.show()
 `
     },
 
-    // B: (antigo A) — espelho simples
     B: {
       name: "B",
       renderBuf: "o0",
@@ -102,7 +101,6 @@ a.show()
 `
     },
 
-    // C: (mantém) — olá, mundo
     C: {
       name: "C",
       renderBuf: "o0",
@@ -143,7 +141,6 @@ src(o2)
 `
     },
 
-    // D: (novo) — espelho (complexo)
     D: {
       name: "D",
       renderBuf: "o2",
@@ -185,7 +182,6 @@ a.show()
   };
 
   function defaultFx() {
-    // “menos saturado” por padrão
     return { contrast: 1.0, saturate: 0.95, brightness: 0.0, colorama: 0.0 };
   }
 
@@ -200,7 +196,6 @@ a.show()
     };
   }
 
-  // migração suave (se existir estado antigo, tenta reaproveitar)
   function getOrInitState() {
     const legacy = (() => {
       try {
@@ -211,19 +206,17 @@ a.show()
     })();
 
     const s = loadState();
-
     const baseState = s || legacy;
+
     if (baseState?.userKey && baseState?.presets) {
       const next = defaultState();
       next.userKey = baseState.userKey || next.userKey;
 
-      // mantém código/fx se existir
       PRESET_IDS.forEach((id) => {
         if (baseState.presets?.[id]?.code) next.presets[id].code = baseState.presets[id].code;
         if (baseState.presets?.[id]?.fx) next.presets[id].fx = { ...defaultFx(), ...baseState.presets[id].fx };
       });
 
-      // se no legado existia A/C (antigos), mapeia pro novo B/C
       if (baseState.presets?.A?.code && !baseState.presets?.B?.code) {
         next.presets.B.code = baseState.presets.A.code;
         next.presets.B.fx = { ...defaultFx(), ...baseState.presets.A.fx };
@@ -277,7 +270,6 @@ a.show()
   window.CEU_PREVIEW_SEED_ID = null;
   window.CEU_PREVIEW_FX = null;
 
-
   function fitHydraCanvasToScreen() {
     const canvas = document.getElementById("hydra-canvas");
     if (!canvas) return;
@@ -313,43 +305,14 @@ a.show()
     window.addEventListener("orientationchange", () => setTimeout(fitHydraCanvasToScreen, 60));
   }
 
-  // =====================================================
-  // STRUDEL (áudio) — independente do Hydra
-  // - clique no triângulo = melodia base diferente
-  // - hover na bolha = prévia de camada (não fixa)
-  // - clique na bolha = fixa camada (som + FX)
-  // - "Som: on/off" com fade curto (sem corte seco)
-  // =====================================================
-  const STRUDEL = {
-    ready: false,
-    enabled: false,
-    triangleId: "A",
-    lockedSeedId: null,
-    previewSeedId: null,
-    basePattern: null,
-    overlayPattern: null,
-    overlayPreview: null,
-  };
-
-  function strudelAvailable() {
-    return !!window.CEU_STRUDEL && typeof window.CEU_STRUDEL.init === "function";
+  function safeEvalHydra(code) {
+    (0, eval)(code);
   }
 
-  async function ensureStrudelReady() {
-    if (STRUDEL.ready) return true;
-    if (!strudelAvailable()) return false;
-    try {
-      await window.CEU_STRUDEL.init();
-      STRUDEL.ready = true;
-      return true;
-    } catch (e) {
-      console.warn("Strudel init falhou:", e);
-      return false;
-    }
-  }
-
+  // =====================================================
+  // FX (Hydra)
+  // =====================================================
   function hash01(str) {
-    // 0..1 determinístico
     let h = 2166136261;
     for (let i = 0; i < str.length; i++) {
       h ^= str.charCodeAt(i);
@@ -358,145 +321,15 @@ a.show()
     return ((h >>> 0) % 10000) / 10000;
   }
 
-  function buildTrianglePattern(triId) {
-    const S = window.CEU_STRUDEL;
-    // melodias simples (padrões curtos), com reverb leve para "colar" no ambiente
-    if (triId === "A") return S.note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85);
-    if (triId === "B") return S.note("<d4 f4 a4 c5>(3,8)").s("saw").dec(.22).room(.38).gain(.78);
-    if (triId === "C") return S.note("<e4 g4 b4 d5>(3,8)").s("gm_lead_1_square").dec(.20).room(.32).gain(.80);
-    return S.note("<a3 c4 e4 g4>(3,8)").s("gm_electric_piano_1").dec(.24).room(.36).gain(.75);
-  }
-
-  function buildSeedLayer(seedId, mode) {
-    const S = window.CEU_STRUDEL;
-    const r = hash01(seedId);
-    const scale = r < 0.33 ? "C:minor" : (r < 0.66 ? "D:minor" : "A:minor");
-    const inst = r < 0.25 ? "hh" : (r < 0.5 ? "gm_pad_1_new_age" : (r < 0.75 ? "gm_bass_2_finger" : "bd"));
-    const dense = r < 0.5 ? 8 : 16;
-    const g = mode === "preview" ? 0.55 : 0.70;
-    const rm = mode === "preview" ? 0.55 : 0.70; // mais cauda no lock
-
-    // camada: ou percussão curta ou notas tonais
-    if (inst === "hh" || inst === "bd") {
-      return S.s(`${inst}*${dense}`)
-        .gain(g)
-        .room(rm);
-    }
-
-    return S.n("<0 2 4 7>*4")
-      .scale(scale)
-      .s(inst)
-      .dec(.18)
-      .gain(g)
-      .room(rm);
-  }
-
-  function stopStrudelAll() {
-    try { if (window.CEU_STRUDEL?.hush) window.CEU_STRUDEL.hush(); } catch {}
-    STRUDEL.basePattern = null;
-    STRUDEL.overlayPattern = null;
-    STRUDEL.overlayPreview = null;
-  }
-
-  function playStrudelMix({ triId, lockedSeedId }) {
-    if (!STRUDEL.enabled) return;
-    if (!window.CEU_STRUDEL) return;
-
-    // rebuild: hush + play
-    stopStrudelAll();
-    STRUDEL.triangleId = triId;
-    STRUDEL.lockedSeedId = lockedSeedId || null;
-
-    const base = buildTrianglePattern(triId);
-    STRUDEL.basePattern = base;
-    base.play();
-
-    if (STRUDEL.lockedSeedId) {
-      const layer = buildSeedLayer(STRUDEL.lockedSeedId, "lock");
-      STRUDEL.overlayPattern = layer;
-      layer.play();
-    }
-  }
-
-  function previewSeedLayer(seedId) {
-    if (!STRUDEL.enabled) return;
-    if (!window.CEU_STRUDEL) return;
-    if (seedId === STRUDEL.lockedSeedId) return;
-    if (seedId === STRUDEL.previewSeedId) return;
-
-    try {
-      // prévia: toca uma camada e corta ao sair
-      if (STRUDEL.overlayPreview) {
-        // substitui sem acumular
-        window.CEU_STRUDEL.hush();
-        // reconstroi base + lock, depois preview
-        const base = buildTrianglePattern(STRUDEL.triangleId);
-        base.play();
-        if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").play();
-      }
-    } catch {}
-
-    STRUDEL.previewSeedId = seedId;
-    STRUDEL.overlayPreview = buildSeedLayer(seedId, "preview");
-    STRUDEL.overlayPreview.play();
-  }
-
-  function clearPreviewSeedLayer() {
-    if (!STRUDEL.enabled) return;
-    if (!STRUDEL.previewSeedId) return;
-    STRUDEL.previewSeedId = null;
-
-    // volta para base + lock
-    playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-  }
-
-  async function setSoundEnabled(on) {
-    const ok = await ensureStrudelReady();
-    if (!ok) return;
-
-    const FADE_MS = 120;
-    if (on) {
-      STRUDEL.enabled = true;
-      // fade in: entra baixinho e re-sobe rápido
-      stopStrudelAll();
-      const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
-      base.play();
-      if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001).play();
-      setTimeout(() => {
-        playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
-      }, FADE_MS);
-    } else {
-      // fade out: baixa gain, depois hush
-      try {
-        const base = buildTrianglePattern(STRUDEL.triangleId).gain(0.0001);
-        base.play();
-        if (STRUDEL.lockedSeedId) buildSeedLayer(STRUDEL.lockedSeedId, "lock").gain(0.0001).play();
-      } catch {}
-      setTimeout(() => {
-        stopStrudelAll();
-        STRUDEL.enabled = false;
-      }, FADE_MS);
-    }
-  }
-
-  function safeEvalHydra(code) {
-    (0, eval)(code);
-  }
-
-  // =====================================================
-  // Hydra FX aleatório por bolha (hover/click)
-  //   - hover aplica FX randômico
-  //   - click trava FX até outra bolha ou clique fora
-  // =====================================================
   function randomFxFromSeed(seedKey) {
     const s = String(seedKey);
     const r1 = hash01(s + "::fx1");
     const r2 = hash01(s + "::fx2");
     const r3 = hash01(s + "::fx3");
 
-    const pick = Math.floor(r1 * 16); // mais variedade
-    const a = 0.18 + r2 * 0.82;       // intensidade
-    const b = 0.65 + r3 * 1.75;       // escala/frequência
+    const pick = Math.floor(r1 * 16);
+    const a = 0.18 + r2 * 0.82;
+    const b = 0.65 + r3 * 1.75;
     const c = r1;
     const d = r2;
 
@@ -512,7 +345,6 @@ a.show()
     const c = fxObj.c ?? 0.5;
     const d = fxObj.d ?? 0.5;
 
-    // moduladores seguros (evitam recursão GLSL)
     const mOsc = osc(6 + b * 10, 0.02 + a * 0.12, 0.8 + c * 1.2);
     const mNoise = noise(1.2 + b * 2.5, 0.15 + a * 0.35);
 
@@ -525,12 +357,9 @@ a.show()
       if (p === 5) return node.luma(() => 0.22 + a * 0.55, 0.12 + d * 0.25);
       if (p === 6) return node.color(0.6 + a * 0.8, 0.55 + d * 0.9, 0.8 + c * 0.7).saturate(0.9 + a * 1.4);
       if (p === 7) return node.hue(() => (c - 0.5) * 1.2).contrast(1.0 + a * 0.5);
-
       if (p === 8) return node.scrollX(() => (a - 0.5) * 0.06, () => (d - 0.5) * 0.03)
                          .scrollY(() => (d - 0.5) * 0.06, () => (a - 0.5) * 0.03);
-
       if (p === 9) return node.repeat(1 + Math.floor(b * 3), 1 + Math.floor(d * 3), 0.0, 0.0).rotate(() => a * 0.15);
-
       if (p === 10) return node.modulateRotate(mOsc, () => a * 0.65).contrast(1.0 + a * 0.35);
       if (p === 11) return node.modulateScale(mNoise, () => 0.8 + a * 1.0, () => a * 0.22);
       if (p === 12) return node.modulate(mOsc, () => a * 0.25).brightness(() => 0.02 + d * 0.08);
@@ -542,57 +371,47 @@ a.show()
     }
   }
 
-function applyPresetFxToDisplay(presetId, state) {
-  const meta = PRESET_DEFAULTS[presetId] || PRESET_DEFAULTS.A;
-  const srcName = meta.renderBuf || "o0";
-  const srcBuf = globalThis[srcName] || globalThis.o0;
-  const outBuf = globalThis[DISPLAY_BUF] || globalThis.o3;
+  function applyPresetFxToDisplay(presetId, state) {
+    const meta = PRESET_DEFAULTS[presetId] || PRESET_DEFAULTS.A;
+    const srcName = meta.renderBuf || "o0";
+    const srcBuf = globalThis[srcName] || globalThis.o0;
+    const outBuf = globalThis[DISPLAY_BUF] || globalThis.o3;
 
-  const fx = state.presets[presetId]?.fx || defaultFx();
+    const fx = state.presets[presetId]?.fx || defaultFx();
+    const h = window.CEU_HOVER || 0;
 
-  const h = window.CEU_HOVER || 0;
+    const lockedFx = window.CEU_LOCKED_FX || null;
+    const previewFx = window.CEU_PREVIEW_FX || null;
 
-  const lockedFx = window.CEU_LOCKED_FX || null;
-  const previewFx = window.CEU_PREVIEW_FX || null;
+    const LOCK_MIX = 0.55;
+    const PREVIEW_MIX = 0.40;
 
-  // Intensidades (mistura): sensação de camada preservada no lock
-  const LOCK_MIX = 0.55;     // camada persistente (lock)
-  const PREVIEW_MIX = 0.40;  // camada temporária (hover)
+    try {
+      let base = src(srcBuf);
+      let affected = src(srcBuf);
 
-  try {
-    // base "pura"
-    let base = src(srcBuf);
+      affected = applyRandomSeedFx(affected, lockedFx);
+      affected = applyRandomSeedFx(affected, previewFx);
 
-    // versão afetada (partimos sempre do mesmo base para não "trocar o mundo")
-    let affected = src(srcBuf);
+      let chain = base;
+      if (lockedFx) chain = chain.blend(affected, LOCK_MIX);
+      if (previewFx) chain = chain.blend(affected, PREVIEW_MIX);
 
-    // aplica FX no "affected"
-    affected = applyRandomSeedFx(affected, lockedFx);
-    affected = applyRandomSeedFx(affected, previewFx);
+      chain
+        .contrast(() => fx.contrast + h * 0.14)
+        .saturate(() => fx.saturate + h * 0.22)
+        .brightness(() => fx.brightness + h * 0.05)
+        .colorama(() => fx.colorama + h * 0.16)
+        .out(outBuf);
 
-    // mistura como camada (em vez de substituir)
-    let chain = base;
-
-    if (lockedFx) chain = chain.blend(affected, LOCK_MIX);
-    if (previewFx) chain = chain.blend(affected, PREVIEW_MIX);
-
-    chain
-      .contrast(() => fx.contrast + h * 0.14)
-      .saturate(() => fx.saturate + h * 0.22)
-      .brightness(() => fx.brightness + h * 0.05)
-      .colorama(() => fx.colorama + h * 0.16)
-      .out(outBuf);
-
-    if (typeof window.render === "function") window.render(outBuf);
-  } catch (e) {
-    console.warn("FX falhou (ignorado):", e);
+      if (typeof window.render === "function") window.render(outBuf);
+    } catch (e) {
+      console.warn("FX falhou (ignorado):", e);
+    }
   }
-}
-
 
   function runActivePreset(state) {
-  initHydraBackground();
-  // sem hush(): rodar o preset ativo já substitui o output pelos .out(...)
+    initHydraBackground();
 
     const presetId = PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A";
     const code = (state.presets[presetId]?.code || PRESET_DEFAULTS[presetId]?.code || "").trim();
@@ -607,6 +426,9 @@ function applyPresetFxToDisplay(presetId, state) {
     }
 
     applyPresetFxToDisplay(presetId, state);
+
+    // ✅ mantém overlay sempre sincronizado
+    if (typeof window.CEU_updateCodeOverlay === "function") window.CEU_updateCodeOverlay();
   }
 
   // =====================================================
@@ -745,7 +567,7 @@ function applyPresetFxToDisplay(presetId, state) {
     applyPresetFxToDisplay(state.activePreset, state);
   }
 
-// =====================================================
+  // =====================================================
   // VIEWER + GARDEN
   // =====================================================
   function pickGlyph(id) {
@@ -801,7 +623,6 @@ function applyPresetFxToDisplay(presetId, state) {
     const getGardenRect = () => (garden?.getBoundingClientRect?.() || { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight });
 
     el.addEventListener("pointerdown", (e) => {
-      // não inicia drag se clicou num elemento interativo dentro (bubble)
       if (e.target?.closest?.(".bubble")) return;
 
       moved = false;
@@ -830,7 +651,6 @@ function applyPresetFxToDisplay(presetId, state) {
 
       const g = getGardenRect();
 
-      // posição do centro do seed (px -> %)
       const cx = (drag.startLeft + dx + (el.offsetWidth / 2) - g.left);
       const cy = (drag.startTop + dy + (el.offsetHeight / 2) - g.top);
 
@@ -850,7 +670,6 @@ function applyPresetFxToDisplay(presetId, state) {
       el.style.animationPlayState = "";
       movedAt = Date.now();
 
-      // se arrastou, não deixa o click “abrir/fechar” disparar
       el.dataset.justDragged = moved ? "1" : "0";
       setTimeout(() => { el.dataset.justDragged = "0"; }, 220);
     };
@@ -858,7 +677,6 @@ function applyPresetFxToDisplay(presetId, state) {
     el.addEventListener("pointerup", stop);
     el.addEventListener("pointercancel", stop);
 
-    // helper usado no click handler
     el._wasJustDragged = () => {
       const v = el.dataset.justDragged === "1";
       if (v && Date.now() - movedAt < 400) return true;
@@ -928,11 +746,9 @@ function applyPresetFxToDisplay(presetId, state) {
 
     el.appendChild(bubble);
 
-    // drag (desktop + mobile)
     enableSeedDrag(el, garden);
 
-    // hover (somente desktop): abre bolha + preview do efeito
-       // hover (somente desktop): abre bolha + preview do efeito
+    // ✅ desktop hover: preview
     if (isHoverDesktop()) {
       let closeT = null;
 
@@ -961,21 +777,16 @@ function applyPresetFxToDisplay(presetId, state) {
         }, 180);
       });
     } else {
-      // MOBILE:
-      // - sem "tap longo" (evita abrir viewer ao tentar arrastar)
-      // - viewer abre apenas pelo botão "ver" dentro da bolha
+      // ✅ mobile: sem tap longo
       el.addEventListener("contextmenu", (e) => e.preventDefault());
     }
 
-
-    // - fixa (som + FX) nesta bolha
+    // ✅ tap/click: lock FX
     el.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
 
       if (typeof el._wasJustDragged === "function" && el._wasJustDragged()) return;
-
-    
 
       openSeedBubble(el);
 
@@ -993,7 +804,7 @@ function applyPresetFxToDisplay(presetId, state) {
       applyPresetFxToDisplay(state.activePreset, state);
     });
 
-    // DESKTOP: 2 cliques abre viewer (sem mexer no lock)
+    // desktop: dblclick abre viewer (sem mexer no lock)
     el.addEventListener("dblclick", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
@@ -1019,7 +830,7 @@ function applyPresetFxToDisplay(presetId, state) {
   }
 
   // =====================================================
-  // MINI EDITOR (edita preset ativo + reset link)
+  // MINI EDITOR
   // =====================================================
   function setupMiniEditor(state) {
     const openBtn = document.getElementById("openHydraMini");
@@ -1036,12 +847,16 @@ function applyPresetFxToDisplay(presetId, state) {
     function syncEditorFromState() {
       const id = activeId();
       codeEl.value = state.presets[id]?.code || PRESET_DEFAULTS[id].code;
+      if (typeof window.CEU_updateCodeOverlay === "function") window.CEU_updateCodeOverlay();
     }
 
     const saveEditorToStateDebounced = debounce(() => {
       const id = activeId();
       state.presets[id].code = codeEl.value;
       saveState(state);
+
+      // ✅ overlay sincroniza enquanto digita
+      if (typeof window.CEU_updateCodeOverlay === "function") window.CEU_updateCodeOverlay();
     }, 200);
 
     codeEl.addEventListener("input", saveEditorToStateDebounced);
@@ -1091,6 +906,7 @@ function applyPresetFxToDisplay(presetId, state) {
       saveState(state);
 
       runActivePreset(state);
+      if (typeof window.CEU_updateCodeOverlay === "function") window.CEU_updateCodeOverlay();
     });
 
     resetLink?.addEventListener("click", (ev) => {
@@ -1107,6 +923,7 @@ function applyPresetFxToDisplay(presetId, state) {
 
       syncEditorFromState();
       runActivePreset(state);
+      if (typeof window.CEU_updateCodeOverlay === "function") window.CEU_updateCodeOverlay();
     });
 
     syncEditorFromState();
@@ -1227,7 +1044,7 @@ function applyPresetFxToDisplay(presetId, state) {
   }
 
   // =====================================================
-  // PRESET UI (triângulos A/B/C/D)
+  // PRESET UI (triângulos)
   // =====================================================
   function setupPresetDock(state, miniApi) {
     const dock = document.getElementById("presetDock");
@@ -1253,14 +1070,15 @@ function applyPresetFxToDisplay(presetId, state) {
         state.activePreset = id;
         saveState(state);
 
-        // ao mudar de triângulo: volta para a base do triângulo selecionado
-        // e remove lock/preview do Hydra
         closeAllSeedBubbles();
         clearSeedLock(state);
 
         miniApi?.syncEditorFromState?.();
         runActivePreset(state);
         setActiveUI();
+
+        // ✅ overlay sincroniza ao trocar triângulo
+        if (typeof window.CEU_updateCodeOverlay === "function") window.CEU_updateCodeOverlay();
       });
     });
 
@@ -1288,7 +1106,6 @@ function applyPresetFxToDisplay(presetId, state) {
       closeDialogSafe(dlg);
     });
 
-    // fecha clicando fora do card
     dlg?.addEventListener("click", (e) => {
       const card = dlg.querySelector(".card");
       if (!card) return;
@@ -1306,7 +1123,6 @@ function applyPresetFxToDisplay(presetId, state) {
   window.addEventListener("DOMContentLoaded", () => {
     const state = getOrInitState();
 
-    // refs mural
     const garden = document.getElementById("garden");
 
     const composer = document.getElementById("composer");
@@ -1327,23 +1143,19 @@ function applyPresetFxToDisplay(presetId, state) {
     const viewerEls = { viewer, viewerImg, viewerText, viewerMeta };
 
     // ==============================
-// RASCUNHO: Plantar uma semente
-// Regra: persiste até Enviar, apagar pelo usuário ou Reset códigos
-// ==============================
-if (textEl) {
-  const draft = loadComposerDraft();
-  if (draft && !textEl.value) textEl.value = draft;
+    // RASCUNHO: Plantar uma semente
+    // ==============================
+    if (textEl) {
+      const draft = loadComposerDraft();
+      if (draft && !textEl.value) textEl.value = draft;
 
-  const saveDraftDebounced = debounce(() => saveComposerDraft(textEl.value), 220);
-  textEl.addEventListener("input", saveDraftDebounced);
+      const saveDraftDebounced = debounce(() => saveComposerDraft(textEl.value), 220);
+      textEl.addEventListener("input", saveDraftDebounced);
+      textEl.addEventListener("change", () => saveComposerDraft(textEl.value));
+    }
 
-  // se o usuário apagar tudo, remove do storage
-  textEl.addEventListener("change", () => saveComposerDraft(textEl.value));
-}
-
-    // Fecha bolhas ao clicar em qualquer lugar fora
+    // Fecha bolhas ao clicar fora
     document.addEventListener("pointerdown", (e) => {
-      // clique fora: fecha bolhas abertas (mas mantém o lock do Hydra)
       if (e.target.closest?.(".seed")) return;
       closeAllSeedBubbles();
 
@@ -1353,7 +1165,6 @@ if (textEl) {
       applyPresetFxToDisplay(state.activePreset, state);
     });
 
-    // dblclick no background: remove lock + volta para o código base do triângulo (mini editor)
     document.addEventListener("dblclick", (e) => {
       if (e.target.closest?.(".seed")) return;
       e.preventDefault();
@@ -1362,12 +1173,10 @@ if (textEl) {
       clearSeedLock(state);
     });
 
-    // Desencorajar “download fácil” (não impede 100%)
     document.addEventListener("contextmenu", (e) => {
       if (e.target.closest?.(".viewerImg, .seed, #garden")) e.preventDefault();
     });
 
-    // Viewer fecha clicando fora do card
     viewer?.addEventListener("click", (e) => {
       const box = viewer.querySelector(".viewer");
       if (!box) return;
@@ -1378,7 +1187,6 @@ if (textEl) {
       if (!inside) closeDialogSafe(viewer);
     });
 
-    // Sobre (popup)
     setupAboutPopup();
 
     // Hydra
@@ -1387,49 +1195,64 @@ if (textEl) {
 
     // Mini editor
     const miniApi = setupMiniEditor(state);
-    
-    // Ctrl+Enter: rodar o preset ativo (mesmo com o mini editor aberto)
-window.addEventListener("keydown", (e) => {
-  const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
-  const mod = isMac ? e.metaKey : e.ctrlKey;
 
-  if (mod && e.key === "Enter") {
-    // evita conflito quando estiver em inputs "normais"
-    // MAS: deixa funcionar dentro do textarea do hydraCode (é o caso que a gente quer)
-    e.preventDefault();
-    e.stopPropagation();
+    // =====================================================
+    // Overlay de código (Y) + Ctrl/Cmd+Enter
+    // =====================================================
+    const codeOverlay = document.getElementById("codeOverlay");
+    let overlayOn = localStorage.getItem("ceu_code_overlay") === "1";
 
-    runActivePreset(state);
-
-    // se existir o overlay de código (ver item 4), atualiza também
-    if (typeof window.CEU_updateCodeOverlay === "function") window.CEU_updateCodeOverlay();
-  }
-});
-
-
-    // Preset dock (A/B/C/D)
-    setupPresetDock(state, miniApi);
-
-    // Som (Strudel)
-    const soundBtn = document.getElementById("toggleSound");
-    const savedSound = localStorage.getItem("ceu_sound_enabled") === "1";
-    STRUDEL.triangleId = state.activePreset;
-    if (savedSound && soundBtn) {
-      // só liga se houver gesto do usuário; atualiza UI, mas não inicia automaticamente
-      soundBtn.textContent = "Som: off";
-      soundBtn.setAttribute("aria-pressed", "false");
+    function getActiveHydraCode() {
+      const id = PRESET_IDS.includes(state.activePreset) ? state.activePreset : "A";
+      return (state.presets[id]?.code || PRESET_DEFAULTS[id]?.code || "").trim();
     }
 
-    soundBtn?.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+    function updateCodeOverlay() {
+      if (!codeOverlay) return;
+      codeOverlay.textContent = getActiveHydraCode();
+    }
 
-      const turningOn = !STRUDEL.enabled;
-      await setSoundEnabled(turningOn);
-      localStorage.setItem("ceu_sound_enabled", turningOn ? "1" : "0");
-      soundBtn.textContent = turningOn ? "Som: on" : "Som: off";
-      soundBtn.setAttribute("aria-pressed", turningOn ? "true" : "false");
+    function setOverlay(on) {
+      overlayOn = !!on;
+      localStorage.setItem("ceu_code_overlay", overlayOn ? "1" : "0");
+      if (!codeOverlay) return;
+      codeOverlay.classList.toggle("is-on", overlayOn);
+      if (overlayOn) updateCodeOverlay();
+    }
+
+    window.CEU_updateCodeOverlay = updateCodeOverlay;
+    setOverlay(overlayOn);
+
+    window.addEventListener("keydown", (e) => {
+      const tag = (document.activeElement?.tagName || "").toLowerCase();
+      const typing = tag === "textarea" || tag === "input";
+      const isHydraCode = document.activeElement?.id === "hydraCode";
+
+      // Y: toggle overlay (não dispara se estiver digitando em inputs comuns)
+      if ((e.key === "y" || e.key === "Y") && (!typing || isHydraCode)) {
+        e.preventDefault();
+        e.stopPropagation();
+        setOverlay(!overlayOn);
+        return;
+      }
+
+      // Ctrl+Enter / Cmd+Enter: rodar
+      const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+
+      if (mod && e.key === "Enter") {
+        // evita conflito em inputs comuns, mas permite no hydraCode
+        if (typing && !isHydraCode) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        runActivePreset(state);
+        if (typeof window.CEU_updateCodeOverlay === "function") window.CEU_updateCodeOverlay();
+      }
     });
+
+    // Preset dock
+    setupPresetDock(state, miniApi);
 
     // abrir composer
     openComposer?.addEventListener("click", () => {
@@ -1440,7 +1263,6 @@ window.addEventListener("keydown", (e) => {
     closeComposer?.addEventListener("click", () => closeDialogSafe(composer));
     closeViewer?.addEventListener("click", () => closeDialogSafe(viewer));
 
-    // fechar composer clicando fora
     composer?.addEventListener("click", (e) => {
       const formEl = composer.querySelector("form");
       if (!formEl) return;
@@ -1482,7 +1304,6 @@ window.addEventListener("keydown", (e) => {
         await insertPost(text, mediaUrl, mediaType);
         clearComposerDraft();
 
-        // plantar => muda FX do preset ativo
         mutateFxOnPlant(state);
 
         if (textEl) textEl.value = "";
@@ -1500,7 +1321,6 @@ window.addEventListener("keydown", (e) => {
       }
     });
 
-    // render inicial
     renderGarden(garden, viewerEls, state);
   });
 
