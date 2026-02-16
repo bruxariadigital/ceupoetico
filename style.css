@@ -770,3 +770,31 @@ input[type="file"]{
   pointer-events: none;
   user-select: none;
 }
+.codeOverlay{
+  position: fixed;
+  inset: 0;
+  z-index: 2;               /* acima do hydra, abaixo das seeds (que estão z-index 1/120 etc). Ajustamos já já */
+  pointer-events: none;
+  padding: 92px 22px 120px 22px;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(255,255,255,0.22);
+  text-shadow: 0 0 14px rgba(90,220,255,0.08);
+  mix-blend-mode: screen;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity .18s ease, transform .22s ease;
+}
+
+.codeOverlay.is-on{
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* mobile */
+@media (max-width: 640px){
+  .codeOverlay{ padding: calc(92px + env(safe-area-inset-top)) 16px 120px 16px; font-size: 11px; }
+}
+
