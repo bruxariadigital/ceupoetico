@@ -821,7 +821,7 @@ input[type="file"]{
 }
 
 .codeOverlay.is-on{
-  opacity: 1;
+  opacity: .51;
   transform: translateY(0);
 }
 
