@@ -307,8 +307,8 @@ a.show()
 
   // =====================================================
   // STRUDEL (áudio) — independente do Hydra
-  // Requer <script src="https://unpkg.com/@strudel/web@1.0.3"></script>
-  // (initStrudel, note, hush globais)  :contentReference[oaicite:2]{index=2}
+  // Carregado via ./strudel-loader.js (ESM) e exposto em window.CEU_STRUDEL
+  // (evita conflito com globals do Hydra como `src`)
   // =====================================================
   const STRUDEL = {
     ready: false,
@@ -321,49 +321,29 @@ a.show()
     overlayPreview: null,
   };
 
-  // wrapper global esperado pelo resto do app
-  if (!window.CEU_STRUDEL) {
-    window.CEU_STRUDEL = {
-      init: async () => false,
-      hush: () => {},
-      // as funções musicais entram depois que initStrudel rodar
-    };
-  }
+  // wrapper esperado pelo resto do app (se o loader falhar, isso evita crash)
+  if (!window.CEU_STRUDEL) window.CEU_STRUDEL = { init: async () => false, hush: () => {} };
 
   function strudelAvailable() {
-    return typeof window.initStrudel === "function";
+    return !!window.CEU_STRUDEL && typeof window.CEU_STRUDEL.init === "function";
   }
 
   async function ensureStrudelReady() {
     if (STRUDEL.ready) return true;
     if (!strudelAvailable()) {
-      console.warn("Strudel: initStrudel() não existe. Confere se @strudel/web foi carregado antes do app.js");
+      console.warn("Strudel: loader não carregou (window.CEU_STRUDEL.init ausente). Confira strudel-loader.js no index.html");
       return false;
     }
 
     try {
-      // IMPORTANTÍSSIMO: chamar isso após gesto do usuário (button click)
-      window.initStrudel(); // cria os globais note(), n(), s(), hush(), setcps(), etc.
-      // tenta “acordar” o audio context, se estiver suspenso
+      // IMPORTANTÍSSIMO: chamar isso após gesto do usuário (click)
+      await window.CEU_STRUDEL.init();
+
+      // tenta “acordar” o audio context, se existir
       try {
-        const ctx =
-          window.Strudel?.context ||
-          window.strudel?.context ||
-          window.audioContext ||
-          window.CEU_STRUDEL?.context;
+        const ctx = window.CEU_STRUDEL?._raw?.Strudel?.context || window.Strudel?.context;
         if (ctx?.state === "suspended" && typeof ctx.resume === "function") await ctx.resume();
       } catch {}
-
-      // monta wrapper com o que o app usa
-      window.CEU_STRUDEL = {
-        init: async () => true,
-        hush: () => { try { window.hush?.(); } catch {} },
-        // expõe o namespace global (note/n/s/scale/etc)
-        note: (...a) => window.note(...a),
-        n: (...a) => window.n(...a),
-        s: (...a) => window.s(...a),
-        setcps: (...a) => window.setcps?.(...a),
-      };
 
       STRUDEL.ready = true;
       return true;
@@ -1412,42 +1392,6 @@ a.show()
 
     const miniApi = setupMiniEditor(state);
 
-// ===== Menu "Crie" (Visuais / Sons) =====
-const createWrap = document.getElementById("createWrap");
-const openCreate = document.getElementById("openCreate");
-const createMenu = document.getElementById("createMenu");
-
-function setCreateMenu(open) {
-  if (!openCreate || !createMenu) return;
-  const on = !!open;
-  openCreate.setAttribute("aria-expanded", on ? "true" : "false");
-  if (on) createMenu.removeAttribute("hidden");
-  else createMenu.setAttribute("hidden", "");
-}
-
-openCreate?.addEventListener("click", (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  const isOpen = !createMenu?.hasAttribute?.("hidden");
-  setCreateMenu(!isOpen); // close if open, open if closed
-});
-
-// fecha o menu ao clicar fora
-document.addEventListener("pointerdown", (e) => {
-  if (!createWrap) return;
-  if (createWrap.contains(e.target)) return;
-  setCreateMenu(false);
-});
-
-// fecha com ESC (se não estiver digitando)
-window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") setCreateMenu(false);
-});
-
-// ao clicar em Visuais/Sons, fecha o menu também
-document.getElementById("openHydraMini")?.addEventListener("click", () => setCreateMenu(false));
-document.getElementById("openStrudelMini")?.addEventListener("click", () => setCreateMenu(false));
-
     // ===== Overlay de código (Y) =====
     const codeOverlay = document.getElementById("codeOverlay");
     let overlayOn = localStorage.getItem("ceu_code_overlay") === "1";
@@ -1502,88 +1446,117 @@ document.getElementById("openStrudelMini")?.addEventListener("click", () => setC
 
     setupPresetDock(state, miniApi);
 
-        // ==========================
-    // SOM (Strudel) — criar / on-off / mini editor
     // ==========================
-    const createSoundBtn = document.getElementById("createSound");
-    const soundBtn = document.getElementById("toggleSound");
+    // CRIE (menu) — Visuais / Sons
+    // ==========================
+    const openCreate = document.getElementById("openCreate");
+    const createMenu = document.getElementById("createMenu");
+    const openHydraMiniBtn = document.getElementById("openHydraMini");
+    const openStrudelMini = document.getElementById("openStrudelMini");
 
-    STRUDEL.triangleId = state.activePreset;
+    function setCreateMenu(on) {
+      if (!createMenu || !openCreate) return;
+      const v = !!on;
+      createMenu.hidden = !v;
+      openCreate.setAttribute("aria-expanded", v ? "true" : "false");
+    }
 
-    createSoundBtn?.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const ok = await ensureStrudelReady();
-      if (!ok) {
-        alert("Strudel não carregou. Confere o <script> do @strudel/web no index.html.");
-        return;
-      }
-      // feedback simples
-      createSoundBtn.textContent = "Som criado";
-      createSoundBtn.disabled = true;
+    openCreate?.addEventListener("click", (e) => {
+      e.preventDefault(); e.stopPropagation();
+      setCreateMenu(createMenu?.hidden);
     });
 
+    // ao escolher "Visuais", fecha o menu e deixa o handler do mini editor agir
+    openHydraMiniBtn?.addEventListener("click", () => setCreateMenu(false));
+
+    document.addEventListener("pointerdown", (e) => {
+      if (!createMenu || createMenu.hidden) return;
+      if (e.target?.closest?.(".createWrap")) return;
+      setCreateMenu(false);
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") setCreateMenu(false);
+    });
+
+    // ==========================
+    // SOM (Strudel) — on/off + mini editor
+    // ==========================
+    const soundBtn = document.getElementById("toggleSound");
+    const savedSound = localStorage.getItem("ceu_sound_enabled") === "1";
+    STRUDEL.triangleId = state.activePreset;
+
+    if (savedSound && soundBtn) {
+      soundBtn.textContent = "Som: off";
+      soundBtn.setAttribute("aria-pressed", "false");
+    }
+
     soundBtn?.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      // exige que "Criar som" tenha sido clicado (gesto do usuário)
-      if (!STRUDEL.ready) {
-        alert("Primeiro clique em “Criar som” para destravar o áudio do navegador.");
-        return;
-      }
-
+      e.preventDefault(); e.stopPropagation();
+      const ok = await ensureStrudelReady();
+      if (!ok) { alert("Strudel não carregou. Veja o console."); return; }
       const turningOn = !STRUDEL.enabled;
       await setSoundEnabled(turningOn);
-
       localStorage.setItem("ceu_sound_enabled", turningOn ? "1" : "0");
       soundBtn.textContent = turningOn ? "Som: on" : "Som: off";
       soundBtn.setAttribute("aria-pressed", turningOn ? "true" : "false");
+      if (turningOn) playStrudelMix({ triId: STRUDEL.triangleId, lockedSeedId: STRUDEL.lockedSeedId });
     });
 
     // mini editor Strudel
     const strudelPanel = document.getElementById("strudelMini");
-    const openStrudelMini = document.getElementById("openStrudelMini");
     const closeStrudelMini = document.getElementById("closeStrudelMini");
     const strudelCode = document.getElementById("strudelCode");
     const runStrudel = document.getElementById("runStrudel");
     const stopStrudel = document.getElementById("stopStrudel");
 
-    // default: mostra o "mix engine" (você pode editar)
     if (strudelCode && !strudelCode.value) {
       strudelCode.value =
 `setcps(1)
 note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85).play()
-// stop: hush()`;
+// parar: hush()`;
     }
 
     function openStrudelPanel(ev){
       ev?.preventDefault?.(); ev?.stopPropagation?.();
       if (!strudelPanel) return;
+      setCreateMenu(false);
       strudelPanel.hidden = !strudelPanel.hidden;
     }
     openStrudelMini?.addEventListener("click", openStrudelPanel);
     closeStrudelMini?.addEventListener("click", (e)=>{ e.preventDefault(); e.stopPropagation(); if(strudelPanel) strudelPanel.hidden = true; });
 
     function evalStrudel(code){
-      // Strudel/web define funções globais (note, hush, setcps...)
-      // Aqui rodamos como JS mesmo.
-      (0, eval)(String(code || ""));
+      const S = window.CEU_STRUDEL;
+      if (!S) throw new Error("CEU_STRUDEL indisponível");
+      const fn = new Function("note","n","s","hush","setcps", '"use strict";\n' + String(code || ""));
+      return fn(S.note, S.n, S.s, S.hush, S.setcps);
+    }
+
+    async function ensureSoundOn() {
+      const ok = await ensureStrudelReady();
+      if (!ok) return false;
+      if (!STRUDEL.enabled) {
+        await setSoundEnabled(true);
+        localStorage.setItem("ceu_sound_enabled", "1");
+        if (soundBtn) {
+          soundBtn.textContent = "Som: on";
+          soundBtn.setAttribute("aria-pressed", "true");
+        }
+      }
+      return true;
     }
 
     runStrudel?.addEventListener("click", async (e) => {
       e.preventDefault(); e.stopPropagation();
-      if (!STRUDEL.ready) {
-        alert("Clique em “Criar som” antes de rodar Strudel.");
-        return;
-      }
+      const ok = await ensureSoundOn();
+      if (!ok) { alert("Strudel não carregou. Veja o console."); return; }
       try { evalStrudel(strudelCode?.value || ""); } catch(err){ console.error(err); alert("Erro no Strudel. Veja o console."); }
     });
 
     stopStrudel?.addEventListener("click", (e) => {
       e.preventDefault(); e.stopPropagation();
-      try { window.hush?.(); } catch {}
+      try { window.CEU_STRUDEL?.hush?.(); } catch {}
     });
 
     // atalho: Alt+Enter roda o Strudel editor (Ctrl+Enter já é Hydra)
@@ -1591,19 +1564,14 @@ note("<c4 eb4 g4 bb4>(3,8)").s("sine").dec(.25).room(.35).gain(.85).play()
       const tag = (document.activeElement?.tagName || "").toLowerCase();
       const typing = tag === "textarea" || tag === "input";
       const isStrudelCode = document.activeElement?.id === "strudelCode";
-
       if (typing && !isStrudelCode) return;
-
       if (e.altKey && e.key === "Enter") {
         e.preventDefault(); e.stopPropagation();
-        if (!STRUDEL.ready) {
-          alert("Clique em “Criar som” antes de rodar Strudel.");
-          return;
-        }
+        const ok = await ensureSoundOn();
+        if (!ok) { alert("Strudel não carregou. Veja o console."); return; }
         try { evalStrudel(strudelCode?.value || ""); } catch(err){ console.error(err); alert("Erro no Strudel. Veja o console."); }
       }
     });
-
 
     // abrir composer
     openComposer?.addEventListener("click", () => {

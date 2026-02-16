@@ -324,6 +324,33 @@ body{
 }
 .fab:active{ transform: translateY(1px); }
 
+/* =========================
+   Crie menu (Visuais / Sons)
+   ========================= */
+.createWrap{ position: relative; display: inline-flex; align-items: center; }
+.createMenu{
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(100% + 10px);
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.06));
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  box-shadow:
+    0 22px 90px rgba(0,0,0,0.42),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.createMenu .btn{ padding: 8px 12px; font-size: 12px; }
+
+@media (max-width: 640px){
+  .createMenu{ bottom: calc(100% + 12px); }
+}
+
 @media (max-width: 640px){
   .fabWrap{
     width: calc(100vw - 24px);
@@ -867,46 +894,3 @@ kbd{
 .btn--ghost{ background:rgba(0,0,0,.12); }
 .btn--tiny{ padding:7px 10px; border-radius:12px; font-size:12px; }
 
-
-
-/* =============================
-   CREATE MENU (Crie -> Visuais/Sons)
-   ============================= */
-.createWrap{
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.createMenu{
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 10px);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  min-width: 160px;
-  border-radius: 18px;
-  background: rgba(255,255,255,.07);
-  border: 1px solid rgba(255,255,255,.16);
-  box-shadow: 0 10px 40px rgba(0,0,0,.35);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-.createMenu[hidden]{ display:none !important; }
-.createMenu__item{
-  width: 100%;
-  justify-content: center;
-  border-radius: 16px;
-}
-
-/* Mini Strudel: botões mais “aero” e discretos */
-#strudelMini .btn{
-  border-radius: 16px;
-}
-#strudelMini .btn--tiny{
-  padding: 8px 10px;
-  font-size: 12px;
-  letter-spacing: .02em;
-}
