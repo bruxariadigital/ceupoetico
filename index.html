@@ -39,13 +39,9 @@
         Plantar uma semente
       </button>
 
-      <div class="createWrap" id="createWrap">
-      <button id="openCreate" class="fab" type="button" aria-expanded="false">Crie</button>
-      <div id="createMenu" class="createMenu" role="menu" aria-label="Criar" hidden>
-        <button id="openHydraMini" class="btn btn--ghost createMenu__item" type="button" role="menuitem">Visuais</button>
-        <button id="openStrudelMini" class="btn btn--ghost createMenu__item" type="button" role="menuitem">Sons</button>
-      </div>
-    </div>
+      <button id="openHydraMini" class="fab" type="button">
+        Crie
+      </button>
     </div>
 
     <!-- Mini editor -->
@@ -131,13 +127,18 @@
       <p id="viewerMeta" class="viewerMeta"></p>
     </div>
   </dialog>
+<!-- CONTROLES DE SOM -->
+<div class="soundDock">
+  <button id="createSound" class="btn">Criar som</button>
+  <button id="toggleSound" class="btn" aria-pressed="false">Som: off</button>
+  <button id="openStrudelMini" class="btn btn--ghost">Strudel</button>
+</div>
+
 <!-- MINI EDITOR STRUDEL -->
 <div id="strudelMini" class="mini mini--strudel" hidden>
   <div class="mini__top">
     <strong>Strudel</strong>
     <div class="mini__topActions">
-      <button id="createSound" class="btn btn--tiny btn--ghost">Criar som</button>
-      <button id="toggleSound" class="btn btn--tiny" aria-pressed="false">Som: off</button>
       <button id="runStrudel" class="btn btn--tiny">Rodar</button>
       <button id="stopStrudel" class="btn btn--tiny btn--ghost">Parar</button>
       <button id="closeStrudelMini" class="btn btn--tiny btn--ghost">✕</button>
