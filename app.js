@@ -764,18 +764,23 @@ a.show()
         applyPresetFxToDisplay(state.activePreset, state);
       });
 
-      el.addEventListener("pointerleave", () => {
-        window.CEU_PREVIEW_SEED_ID = null;
-        window.CEU_PREVIEW_FX = null;
+el.addEventListener("pointerleave", () => {
+  window.CEU_PREVIEW_SEED_ID = null;
+  window.CEU_PREVIEW_FX = null;
 
-        window.CEU_HOVER = 0;
-        applyPresetFxToDisplay(state.activePreset, state);
+  window.CEU_HOVER = 0;
+  applyPresetFxToDisplay(state.activePreset, state);
 
-        closeT = setTimeout(() => {
-          el.classList.remove("is-open");
-          el.style.zIndex = "";
-        }, 180);
-      });
+  // ✅ Se esta seed está em LOCK, não fecha ao sair o mouse
+  const isLocked = window.CEU_LOCKED_SEED_ID === post.id || el.classList.contains("is-locked");
+  if (isLocked) return;
+
+  closeT = setTimeout(() => {
+    el.classList.remove("is-open");
+    el.style.zIndex = "";
+  }, 180);
+});
+
     } else {
       // ✅ mobile: sem tap longo
       el.addEventListener("contextmenu", (e) => e.preventDefault());
